@@ -21,6 +21,7 @@ import json
 from datetime import datetime, time
 import pytz
 import argparse
+import time
 
 logging.basicConfig(
     format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -250,9 +251,35 @@ class MyClient(discord.Client):
                 self.fruits += 1
                 logging.info(f"got a fruit {self.fruits}")
 
-            if message_uuid == id and message_content == "kevent":
-                logging.info("Reset fruit count")
-                self.fruits = 0
+            if message_uuid == karuta_id and f"<@{str(id)}>, you must wait" in message_content:
+                if "before grabbing" in message_content:
+                    grab_time = message_content.split("`")[1]
+                    val = grab_time.split(" ")[0]
+                    unit = grab_time.split(" ")[1]
+                    seconds_for_grab = 660
+                    if unit == "minutes":
+                        seconds_for_grab = int(val)*60
+                    else:
+                        seconds_for_grab = int(val)
+                    grab_delay= seconds_for_grab + random.uniform(30, 100)
+                    logging.info(f"Got grab warning - updating grab cd to {grab_delay}")
+                    self.grab_cd = grab_delay
+                    self.grab = False
+
+                if "before dropping" in message_content:
+                    drop_time = message_content.split("`")[1]
+                    val = drop_time.split(" ")[0]
+                    unit = drop_time.split(" ")[1]
+                    seconds_for_drop = 60*30
+                    if unit == "minutes":
+                        seconds_for_drop = int(val)*60
+                    else:
+                        seconds_for_drop = int(val)
+                    drop_delay = seconds_for_drop + random.uniform(30, 100)
+                    logging.info(f"Got drop warning - updating drop cd to {drop_delay}")
+                    self.drop_cd = drop_delay
+                    self.drop = False
+
 
             # Karuta message for personal drop
             if message_uuid == karuta_id and str(id) in message_content:
@@ -261,7 +288,7 @@ class MyClient(discord.Client):
                     first_row = components[0]
                     buttons : list[discord.Button] = first_row.children
                     await self.wait_for("message_edit", check=mcheck)
-                    click_delay = random.uniform(0.55, 2)
+                    click_delay = random.uniform(0.2, 0.8)
                     best_index, rating = await self.get_best_card_index(message)
                     new_button = message.components[0].children[best_index]
                     await asyncio.sleep(click_delay)
@@ -299,11 +326,10 @@ class MyClient(discord.Client):
                         logging.info("fruit detected - public drop")
 
                         if self.fruits < MAX_FRUITS:
-                            click_delay = random.uniform(0.55, 2)
+                            click_delay = random.uniform(0.55, 1)
                             await asyncio.sleep(click_delay)
                             fruit_button = message.components[0].children[-1]
                             await fruit_button.click()
-                            click_delay = random.uniform(0.55, 2)
                             await asyncio.sleep(click_delay)
                             logging.info("Tried to grab fruit")
                         else:
@@ -321,12 +347,13 @@ class MyClient(discord.Client):
                 if len(components) > 0:
                     first_row = components[0]
                     buttons : list[discord.Button] = first_row.children
-                    click_delay = random.uniform(0.55, 2)
+                    click_delay = random.uniform(0.55, 1.2)
 
                     best_index = random.randint(0, len(components)-1)
                     rating = 10
                     if ENABLE_OCR:
                         best_index, rating = await self.get_best_card_index(message)
+                        click_delay = random.uniform(0.2, 0.5)
 
                     if rating < 2:
                         logging.info("Rating too low, skipping")

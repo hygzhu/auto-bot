@@ -56,6 +56,7 @@ drop_channel = data["drop_channel"]
 follow_channels = data["follow_channels"]
 
 drop_delay_seconds = 1943
+MAX_FRUITS = 5
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
@@ -249,6 +250,10 @@ class MyClient(discord.Client):
                 self.fruits += 1
                 logging.info(f"got a fruit {self.fruits}")
 
+            if message_uuid == id and message_content == "kevent":
+                logging.info("Reset fruit count")
+                self.fruits = 0
+
             # Karuta message for personal drop
             if message_uuid == karuta_id and str(id) in message_content:
                 components = message.components
@@ -256,7 +261,6 @@ class MyClient(discord.Client):
                     first_row = components[0]
                     buttons : list[discord.Button] = first_row.children
                     await self.wait_for("message_edit", check=mcheck)
-                    num_buttons = len(buttons)
                     click_delay = random.uniform(0.55, 2)
                     best_index, rating = await self.get_best_card_index(message)
                     new_button = message.components[0].children[best_index]
@@ -269,7 +273,7 @@ class MyClient(discord.Client):
                     # Get fruits
                     if message.components[0].children[-1].emoji.name == "🍉":
                         logging.info("fruit detected")
-                        if self.fruits < 3:
+                        if self.fruits < MAX_FRUITS:
                             logging.info("grabbing fruit")
                             click_delay = random.uniform(0.55, 2)
                             await asyncio.sleep(click_delay)
@@ -280,8 +284,6 @@ class MyClient(discord.Client):
 
 
                     await self.afterclick()
-
-
 
 
             # Free drop
@@ -296,7 +298,7 @@ class MyClient(discord.Client):
                     if message.components[0].children[-1].emoji.name == "🍉":
                         logging.info("fruit detected - public drop")
 
-                        if self.fruits < 3:
+                        if self.fruits < MAX_FRUITS:
                             click_delay = random.uniform(0.55, 2)
                             await asyncio.sleep(click_delay)
                             fruit_button = message.components[0].children[-1]
@@ -322,6 +324,7 @@ class MyClient(discord.Client):
                     click_delay = random.uniform(0.55, 2)
 
                     best_index = random.randint(0, len(components)-1)
+                    rating = 10
                     if ENABLE_OCR:
                         best_index, rating = await self.get_best_card_index(message)
 
@@ -338,6 +341,7 @@ class MyClient(discord.Client):
                         await self.afterclick()
 
     async def get_best_card_index(self, message):
+        start = time.time()
 
         rating = 0
 
@@ -435,6 +439,10 @@ class MyClient(discord.Client):
 
         
         logging.info(f"Best card is idx {best_idx}")
+
+        end = time.time()
+        logging.info(f"Took {end-start} time to get best index")
+
         return best_idx, rating
 
 

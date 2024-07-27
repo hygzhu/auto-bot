@@ -31,8 +31,6 @@ logging.basicConfig(
         logging.FileHandler(f"output.log.{datetime.now().timestamp()}", mode="w"),
     ])
 
-
-
 karuta_name = "Karuta"
 karuta_id = 646937666251915264
 

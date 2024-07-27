@@ -1,0 +1,11 @@
+dev_env
+temp
+__pycache__
+.env
+config.json
+*.log
+*.db
+*.txt
+nohup.out
+output.log*
+config*

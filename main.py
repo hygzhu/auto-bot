@@ -235,13 +235,16 @@ class MyClient(discord.Client):
             message_content = message.content
             message_uuid = message.author.id
 
-            if message == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
+            if str(id) in message_content:
+                logging.info(f"Message with id - content: {message_content}")
+
+            if message_uuid == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
                 logging.info("Generosity activated")
                 self.drop = True
                 self.drop_cd = 0
 
             # Evasion
-            if message == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
+            if message_uuid == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
                 logging.info("Evasion activated")
                 self.grab = True
                 self.grab_cd = 0

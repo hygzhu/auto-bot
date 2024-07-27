@@ -37,11 +37,13 @@ karuta_id = 646937666251915264
 
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
-parser.add_argument("-drop", help="Enmable drop",  action='store_true')
+parser.add_argument("-drop", help="Enable drop",  action='store_true')
+parser.add_argument("-ocr", help="Enable ocr on public drop",  action='store_true')
 args = parser.parse_args()
 
-logging.info(f"Parser args config:{args.c} drop:{args.drop}")
+logging.info(f"Parser args config:{args.c} drop:{args.drop} enableocr: {args.ocr}")
 
+ENABLE_OCR = args.ocr
 DROP_STATUS = args.drop
 
 f = open(args.c)
@@ -255,12 +257,11 @@ class MyClient(discord.Client):
                     buttons : list[discord.Button] = first_row.children
                     await self.wait_for("message_edit", check=mcheck)
                     num_buttons = len(buttons)
-                    index = random.randint(0,num_buttons-1)
                     click_delay = random.uniform(0.55, 2)
                     best_index, rating = await self.get_best_card_index(message)
                     new_button = message.components[0].children[best_index]
                     await asyncio.sleep(click_delay)
-                    logging.info(f"Clicking button {index+1} after delay of {click_delay}")
+                    logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                     await new_button.click()
                     self.grab = False
                     self.grab_cd += 632 + random.uniform(0.55, 60)
@@ -318,17 +319,19 @@ class MyClient(discord.Client):
                 if len(components) > 0:
                     first_row = components[0]
                     buttons : list[discord.Button] = first_row.children
-                    num_buttons = len(buttons)
-                    index = random.randint(0,num_buttons-1)
                     click_delay = random.uniform(0.55, 2)
-                    best_index, rating = await self.get_best_card_index(message)
+
+                    best_index = random.randint(0, len(components)-1)
+                    if ENABLE_OCR:
+                        best_index, rating = await self.get_best_card_index(message)
+
                     if rating < 2:
                         logging.info("Rating too low, skipping")
                     else:
                         logging.info("Rating good, lets grab")
                         new_button = message.components[0].children[best_index]
                         await asyncio.sleep(click_delay)
-                        logging.info(f"Clicking button {index+1} after delay of {click_delay}")
+                        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                         await new_button.click()
                         self.grab = False
                         self.grab_cd += 65 + random.uniform(0.55, 10)

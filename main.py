@@ -130,11 +130,12 @@ class MyClient(discord.Client):
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
 
-            if is_hour_between(hour, 2, 8):
-                logging.info(f"{hour} Im going to sleep, goodnight")
+            while is_hour_between(hour, 1, 6):
+                sleep_time = random.uniform(100, 600)
+                logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
                 self.sleeping = True
-                await asyncio.sleep(21600 + random.uniform(5, 1800))
-                self.sleeping = False
+                await asyncio.sleep()
+            self.sleeping = False
 
             try: 
                 async with dm.typing():
@@ -223,6 +224,8 @@ class MyClient(discord.Client):
                     else:
                         seconds_for_grab = int(val)
                     self.grab_cd = seconds_for_grab + random.uniform(30, 100)
+                else:
+                    self.grab_cd = random.uniform(30, 100)
                 if not self.drop:
                     drop_time = drop_status.split("`")[1]
                     val = drop_time.split(" ")[0]

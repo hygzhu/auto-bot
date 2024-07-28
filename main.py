@@ -35,6 +35,8 @@ logging.basicConfig(
 karuta_name = "Karuta"
 karuta_id = 646937666251915264
 
+SECONDS_FOR_GRAB = 6623
+SECONDS_FOR_DROP = 1816
 
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
@@ -56,7 +58,6 @@ dm_channel = data["dm_channel"]
 drop_channel = data["drop_channel"]
 follow_channels = data["follow_channels"]
 
-drop_delay_seconds = 1943
 MAX_FRUITS = 5
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
@@ -99,7 +100,7 @@ class MyClient(discord.Client):
         await channel.send("kd")
         self.timer += random.uniform(0.2, 1)
         self.drop = False
-        self.drop_cd += 30*60 + random.uniform(0.2, 300)
+        self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 243)
         self.grab_cd = 0
         logging.info(f"Auto Dropped Cards")
         
@@ -237,19 +238,19 @@ class MyClient(discord.Client):
                     grab_time = grab_status.split("`")[1]
                     val = grab_time.split(" ")[0]
                     unit = grab_time.split(" ")[1]
-                    seconds_for_grab = 660
+                    seconds_for_grab = SECONDS_FOR_GRAB
                     if unit == "minutes":
                         seconds_for_grab = int(val)*60
                     else:
                         seconds_for_grab = int(val)
                     self.grab_cd = seconds_for_grab + random.uniform(5, 30)
                 else:
-                    self.grab_cd = random.uniform(30, 100)
+                    self.grab_cd = random.uniform(5, 25)
                 if not self.drop:
                     drop_time = drop_status.split("`")[1]
                     val = drop_time.split(" ")[0]
                     unit = drop_time.split(" ")[1]
-                    seconds_for_drop = 1800
+                    seconds_for_drop = SECONDS_FOR_DROP
                     if unit == "minutes":
                         seconds_for_drop = int(val)*60
                     else:
@@ -284,7 +285,7 @@ class MyClient(discord.Client):
                     self.evasion = False
                 else:
                     self.grab = False
-                    self.grab_cd = 632 + random.uniform(0.55, 60)
+                    self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
 
             # Evasion
             if message_uuid == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
@@ -344,7 +345,7 @@ class MyClient(discord.Client):
                     logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                     await new_button.click()
                     self.grab = False
-                    self.grab_cd += 632 + random.uniform(0.55, 60)
+                    self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
 
                     # Get fruits
                     if message.components[0].children[-1].emoji.name == "🍉":
@@ -403,7 +404,7 @@ class MyClient(discord.Client):
                             logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                             await new_button.click()
                             self.grab = False
-                            self.grab_cd += 65 + random.uniform(0.55, 10)
+                            self.grab_cd = 65 + random.uniform(0.55, 10)
                             await self.afterclick()
                     else:
                         logging.error("No components in drop message")

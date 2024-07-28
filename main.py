@@ -376,22 +376,23 @@ class MyClient(discord.Client):
                 waited_for_edit = False
 
                 if self.grab and not self.drop:
-                    click_delay = random.uniform(0.55, 1.2)
-                    rating = 10
-                    best_index = random.randint(0, len(components)-1)
-                    if ENABLE_OCR:
-                        best_index, rating = await self.get_best_card_index(message)
-                        click_delay = random.uniform(0.2, 0.5)
-                        if rating == 4:
-                            click_delay = random.uniform(0.1, 0.2)
-                            logging.info(f"Clicking fast {click_delay}")
-                    try:
-                        await self.wait_for("message_edit", check=mcheck, timeout=3)
-                    except TimeoutError as e:
-                        logging.error(f"Wait for timed out {e}")
-                    waited_for_edit = True
-                    logging.info("Lets try to grab - drop is on cd")
                     if len(components) > 0:
+                        click_delay = random.uniform(0.55, 1.2)
+                        rating = 10
+                        best_index = random.randint(0, len(components)-1)
+                        if ENABLE_OCR:
+                            best_index, rating = await self.get_best_card_index(message)
+                            click_delay = random.uniform(0.2, 0.5)
+                            if rating == 4:
+                                click_delay = random.uniform(0.1, 0.2)
+                                logging.info(f"Clicking fast {click_delay}")
+                        try:
+                            await self.wait_for("message_edit", check=mcheck, timeout=3)
+                        except TimeoutError as e:
+                            logging.error(f"Wait for timed out {e}")
+
+                        waited_for_edit = True
+                        logging.info("Lets try to grab - drop is on cd")
                         first_row = components[0]
                         if rating < 2:
                             logging.info("Rating too low, skipping")
@@ -404,6 +405,8 @@ class MyClient(discord.Client):
                             self.grab = False
                             self.grab_cd += 65 + random.uniform(0.55, 10)
                             await self.afterclick()
+                    else:
+                        logging.error("No components in drop message")
                 else:
                     logging.info(f"Cannot grab, on cd {self.grab_cd}")
 

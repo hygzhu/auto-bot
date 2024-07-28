@@ -326,13 +326,16 @@ class MyClient(discord.Client):
 
             # Karuta message for personal drop
             if message_uuid == karuta_id and str(id) in message_content:
-                logging.info("Personal drop")
                 components = message.components
                 if len(components) > 0:
+                    logging.info("Personal drop")
                     first_row = components[0]
                     buttons : list[discord.Button] = first_row.children
                     best_index, rating = await self.get_best_card_index(message)
-                    await self.wait_for("message_edit", check=mcheck, timeout=3)
+                    try:
+                        await self.wait_for("message_edit", check=mcheck, timeout=3)
+                    except TimeoutError as e:
+                        logging.error(f"Wait for timed out {e}")
                     click_delay = random.uniform(0.2, 0.8)
                     if rating == 4:
                         click_delay = random.uniform(0.01, 0.1)
@@ -375,20 +378,21 @@ class MyClient(discord.Client):
                 if self.grab and not self.drop:
                     click_delay = random.uniform(0.55, 1.2)
                     rating = 10
+                    best_index = random.randint(0, len(components)-1)
                     if ENABLE_OCR:
                         best_index, rating = await self.get_best_card_index(message)
                         click_delay = random.uniform(0.2, 0.5)
                         if rating == 4:
                             click_delay = random.uniform(0.1, 0.2)
                             logging.info(f"Clicking fast {click_delay}")
-                    await self.wait_for("message_edit", check=mcheck, timeout=3)
+                    try:
+                        await self.wait_for("message_edit", check=mcheck, timeout=3)
+                    except TimeoutError as e:
+                        logging.error(f"Wait for timed out {e}")
                     waited_for_edit = True
                     logging.info("Lets try to grab - drop is on cd")
                     if len(components) > 0:
                         first_row = components[0]
-                        
-                        best_index = random.randint(0, len(components)-1)
-
                         if rating < 2:
                             logging.info("Rating too low, skipping")
                         else:
@@ -409,7 +413,10 @@ class MyClient(discord.Client):
                         logging.info("fruit detected - public drop")
 
                         if not waited_for_edit:
-                            await self.wait_for("message_edit", check=mcheck, timeout=3)
+                            try:
+                                await self.wait_for("message_edit", check=mcheck, timeout=3)
+                            except TimeoutError as e:
+                                logging.error(f"Wait for timed out {e}")
                             waited_for_edit = True
 
                         if self.fruits < MAX_FRUITS:

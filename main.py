@@ -220,12 +220,12 @@ class MyClient(discord.Client):
                 return
             
             #Run kevent reply - rtefresh fruit count
-            if "Gather fruit pieces to place on the board below." in message.embeds[0].description:
+            if message.embeds and "Gather fruit pieces to place on the board below." in message.embeds[0].description:
                 logging.info("Refreshing fruit")
                 self.fruits = 0
                 return
 
-            if "Showing cooldowns" in message.embeds[0].description:
+            if message.embeds and "Showing cooldowns" in message.embeds[0].description:
                 logging.info("Getting cooldowns")
                 message_tokens = message.embeds[0].description.split("\n")
                 grab_status = message_tokens[-2]

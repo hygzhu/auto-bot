@@ -85,6 +85,7 @@ class MyClient(discord.Client):
         self.unpopCharacterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE wishlistcount < 2 ORDER BY wishlistcount desc, series asc, character asc")
         self.fruits = 0
         self.sleeping = False
+        self.evasion = False
 
 
     async def drop_card(self):
@@ -255,14 +256,20 @@ class MyClient(discord.Client):
             #took a card- grab goes on cd
             if message_uuid == karuta_id and (f"<@{str(id)}> took the" in message_content or f"<@{str(id)}> fought off" in message_content):
                 logging.info(f"Took a card: message {message_content}")
-                self.grab = False
-                self.grab_cd = 632 + random.uniform(0.55, 60)
+
+                if self.evasion:
+                    logging.info("No cd, evasion used")
+                    self.evasion = False
+                else:
+                    self.grab = False
+                    self.grab_cd = 632 + random.uniform(0.55, 60)
 
             # Evasion
             if message_uuid == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
                 logging.info("Evasion activated")
                 self.grab = True
                 self.grab_cd = 0
+                self.evasion = True
             
 
             if message_uuid == karuta_id and f"<@{str(id)}>, you must wait" in message_content:

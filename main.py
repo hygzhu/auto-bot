@@ -197,37 +197,46 @@ class MyClient(discord.Client):
                     self.drop_cd = 0
                     logging.info("drop off cd!")
                 return
-            message_tokens = message.embeds[0].description.split("\n")
-            grab_status = message_tokens[-2]
-            drop_status = message_tokens[-1]
-            self.grab =  "currently available" in grab_status
-            self.drop = "currently available" in drop_status
-        
-            if not self.grab:
-                grab_time = grab_status.split("`")[1]
-                val = grab_time.split(" ")[0]
-                unit = grab_time.split(" ")[1]
-                seconds_for_grab = 660
-                if unit == "minutes":
-                    seconds_for_grab = int(val)*60
-                else:
-                    seconds_for_grab = int(val)
-                self.grab_cd += seconds_for_grab + random.uniform(30, 100)
-            if not self.drop:
-                drop_time = drop_status.split("`")[1]
-                val = drop_time.split(" ")[0]
-                unit = drop_time.split(" ")[1]
-                seconds_for_drop = 1800
-                if unit == "minutes":
-                    seconds_for_drop = int(val)*60
-                else:
-                    seconds_for_drop = int(val)
-                drop_time = drop_status.split("`")[1]
-                self.drop_cd += seconds_for_drop + random.uniform(30, 500)
-
-            logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
-            logging.info(f"Grab cd : {self.grab_cd}, Drop cd: {self.drop_cd}")
             
+            #Run kevent reply - rtefresh fruit count
+            if "Gather fruit pieces to place on the board below." in message.embeds[0].description:
+                logging.info("Refreshing fruit")
+                self.fruits = 0
+                return
+
+            if "Showing cooldowns" in message.embeds[0].description:
+                logging.info("Getting cooldowns")
+                message_tokens = message.embeds[0].description.split("\n")
+                grab_status = message_tokens[-2]
+                drop_status = message_tokens[-1]
+                self.grab =  "currently available" in grab_status
+                self.drop = "currently available" in drop_status
+            
+                if not self.grab:
+                    grab_time = grab_status.split("`")[1]
+                    val = grab_time.split(" ")[0]
+                    unit = grab_time.split(" ")[1]
+                    seconds_for_grab = 660
+                    if unit == "minutes":
+                        seconds_for_grab = int(val)*60
+                    else:
+                        seconds_for_grab = int(val)
+                    self.grab_cd = seconds_for_grab + random.uniform(30, 100)
+                if not self.drop:
+                    drop_time = drop_status.split("`")[1]
+                    val = drop_time.split(" ")[0]
+                    unit = drop_time.split(" ")[1]
+                    seconds_for_drop = 1800
+                    if unit == "minutes":
+                        seconds_for_drop = int(val)*60
+                    else:
+                        seconds_for_drop = int(val)
+                    drop_time = drop_status.split("`")[1]
+                    self.drop_cd = seconds_for_drop + random.uniform(30, 500)
+
+                logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
+                logging.info(f"Grab cd : {self.grab_cd}, Drop cd: {self.drop_cd}")
+                
 
         # Message in channel
         if cid in follow_channels:
@@ -236,12 +245,18 @@ class MyClient(discord.Client):
             message_uuid = message.author.id
 
             if str(id) in message_content:
-                logging.info(f"Message with id - content: {message_content}")
+                logging.debug(f"Message with id - content: {message_content}")
 
-            if message_uuid == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
-                logging.info("Generosity activated")
-                self.drop = True
-                self.drop_cd = 0
+            # karuta message for fruit
+            if message_uuid == karuta_id and f"<@{str(id)}>, you gathered a fruit piece" in message_content:
+                self.fruits += 1
+                logging.info(f"got a fruit {self.fruits}")
+    
+            #took a card- grab goes on cd
+            if message_uuid == karuta_id and (f"<@{str(id)}> took the" in message_content or f"<@{str(id)}> fought off" in message_content):
+                logging.info(f"Took a card: message {message_content}")
+                self.grab = False
+                self.grab_cd = 632 + random.uniform(0.55, 60)
 
             # Evasion
             if message_uuid == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
@@ -249,10 +264,6 @@ class MyClient(discord.Client):
                 self.grab = True
                 self.grab_cd = 0
             
-            # karuta message for fruit
-            if message_uuid == karuta_id and f"<@{str(id)}>, you gathered a fruit piece" in message_content:
-                self.fruits += 1
-                logging.info(f"got a fruit {self.fruits}")
 
             if message_uuid == karuta_id and f"<@{str(id)}>, you must wait" in message_content:
                 if "before grabbing" in message_content:
@@ -315,7 +326,11 @@ class MyClient(discord.Client):
 
                     await self.afterclick()
 
-
+            if message_uuid == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
+                logging.info("Generosity activated")
+                self.drop = True
+                self.drop_cd = 0
+                
             # Free drop
             if message_uuid == karuta_id and "since this server is currently active" in message.content:
                 logging.info("Got message from dropped card")

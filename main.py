@@ -332,7 +332,7 @@ class MyClient(discord.Client):
                     first_row = components[0]
                     buttons : list[discord.Button] = first_row.children
                     best_index, rating = await self.get_best_card_index(message)
-                    await self.wait_for("message_edit", check=mcheck)
+                    await self.wait_for("message_edit", check=mcheck, timeout=3)
                     click_delay = random.uniform(0.2, 0.8)
                     if rating == 4:
                         click_delay = random.uniform(0.01, 0.1)
@@ -372,7 +372,6 @@ class MyClient(discord.Client):
 
                 waited_for_edit = False
 
-
                 if self.grab and not self.drop:
                     click_delay = random.uniform(0.55, 1.2)
                     rating = 10
@@ -382,7 +381,7 @@ class MyClient(discord.Client):
                         if rating == 4:
                             click_delay = random.uniform(0.1, 0.2)
                             logging.info(f"Clicking fast {click_delay}")
-                    await self.wait_for("message_edit", check=mcheck)
+                    await self.wait_for("message_edit", check=mcheck, timeout=3)
                     waited_for_edit = True
                     logging.info("Lets try to grab - drop is on cd")
                     if len(components) > 0:
@@ -410,7 +409,7 @@ class MyClient(discord.Client):
                         logging.info("fruit detected - public drop")
 
                         if not waited_for_edit:
-                            await self.wait_for("message_edit", check=mcheck)
+                            await self.wait_for("message_edit", check=mcheck, timeout=3)
                             waited_for_edit = True
 
                         if self.fruits < MAX_FRUITS:

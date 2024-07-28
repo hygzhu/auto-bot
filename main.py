@@ -86,6 +86,7 @@ class MyClient(discord.Client):
         self.fruits = 0
         self.sleeping = False
         self.evasion = False
+        self.lock = asyncio.Lock()
 
 
     async def drop_card(self):
@@ -115,11 +116,11 @@ class MyClient(discord.Client):
 
         # Auto drop
         while True:
-            
+
             logging.info(f"Polling  grab:{self.grab} grabcd:{self.grab_cd} drop:{self.drop} dropcd:{self.drop_cd}")
             await asyncio.sleep(random.uniform(5, 10))
-
             
+
             if self.timer != 0:
                 await asyncio.sleep(self.timer)
                 self.timer = 0
@@ -152,7 +153,7 @@ class MyClient(discord.Client):
                 
                 
                 if self.grab_cd != 0:
-                    logging.info(f"Grab on cd {self.grab_cd}")
+                    logging.info(f"Grab on cd {self.grab_cd}, waiting")
                     await asyncio.sleep(self.grab_cd)
                     self.grab_cd = 0
                     self.grab = True
@@ -164,240 +165,249 @@ class MyClient(discord.Client):
     
     async def on_message(self, message: discord.Message):
 
+        async with self.lock:
+            # process each message atomically -> no race conditions
 
-        if self.sleeping:
-            return
-        
-        # Early return
-        cid = message.channel.id
-        if (cid not in follow_channels or cid != dm_channel) and message.author.id != karuta_id:
-            return
+            if self.sleeping:
+                return
+            
+            # Early return
+            cid = message.channel.id
+            if (cid not in follow_channels or cid != dm_channel) and message.author.id != karuta_id:
+                return
 
-        # Edit check helper
-        def mcheck(before, after):
-            if before.id == message.id and not after.components[0].children[0].disabled:
-                logging.debug("Message edit found")
-                try:
-                    self.buttons = after.components[0].children
-                    return True
-                except IndexError:
-                    logging.error(f"Index error")
-            else:
-                return False
+            # Edit check helper
+            def mcheck(before, after):
+                if len(after.components) == 0:
+                    return False
+
+                if before.id == message.id and not after.components[0].children[0].disabled:
+                    logging.debug("Message edit found")
+                    try:
+                        self.buttons = after.components[0].children
+                        return True
+                    except IndexError:
+                        logging.error(f"Index error")
+                else:
+                    return False
+            
+            # Dm messages
+            if not message.guild and message.author.id == karuta_id:
+                logging.info("Got dm")
+                if len(message.embeds) == 0:
+                    if "Your grab is now off cooldown" in  message.content:
+                        self.grab = True
+                        self.grab_cd = 0
+                        logging.info("Grab off cd!")
+                    
+                    if "Your drop is now off cooldown" in  message.content:
+                        self.drop = True
+                        self.drop_cd = 0
+                        logging.info("drop off cd!")
+                    return
+                
+                #Run kevent reply - rtefresh fruit count
+                if "Gather fruit pieces to place on the board below." in message.embeds[0].description:
+                    logging.info("Refreshing fruit")
+                    self.fruits = 0
+                    return
+
+                if "Showing cooldowns" in message.embeds[0].description:
+                    logging.info("Getting cooldowns")
+                    message_tokens = message.embeds[0].description.split("\n")
+                    grab_status = message_tokens[-2]
+                    drop_status = message_tokens[-1]
+                    self.grab =  "currently available" in grab_status
+                    self.drop = "currently available" in drop_status
+                
+                    if not self.grab:
+                        grab_time = grab_status.split("`")[1]
+                        val = grab_time.split(" ")[0]
+                        unit = grab_time.split(" ")[1]
+                        seconds_for_grab = 660
+                        if unit == "minutes":
+                            seconds_for_grab = int(val)*60
+                        else:
+                            seconds_for_grab = int(val)
+                        self.grab_cd = seconds_for_grab + random.uniform(30, 100)
+                    else:
+                        self.grab_cd = random.uniform(30, 100)
+                    if not self.drop:
+                        drop_time = drop_status.split("`")[1]
+                        val = drop_time.split(" ")[0]
+                        unit = drop_time.split(" ")[1]
+                        seconds_for_drop = 1800
+                        if unit == "minutes":
+                            seconds_for_drop = int(val)*60
+                        else:
+                            seconds_for_drop = int(val)
+                        drop_time = drop_status.split("`")[1]
+                        self.drop_cd = seconds_for_drop + random.uniform(30, 500)
+
+                    logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
+                    logging.info(f"Grab cd : {self.grab_cd}, Drop cd: {self.drop_cd}")
+                    
+
+            # Message in channel
+            if cid in follow_channels:
+
+                message_content = message.content
+                message_uuid = message.author.id
+
+                if str(id) in message_content:
+                    logging.debug(f"Message with id - content: {message_content}")
+
+                # karuta message for fruit
+                if message_uuid == karuta_id and f"<@{str(id)}>, you gathered a fruit piece" in message_content:
+                    self.fruits += 1
+                    logging.info(f"got a fruit {self.fruits}")
         
-        # Dm messages
-        if not message.guild and message.author.id == karuta_id:
-            logging.info("Got dm")
-            if len(message.embeds) == 0:
-                if "Your grab is now off cooldown" in  message.content:
+                #took a card- grab goes on cd
+                if message_uuid == karuta_id and (f"<@{str(id)}> took the" in message_content or f"<@{str(id)}> fought off" in message_content):
+                    logging.info(f"Took a card: message {message_content}")
+
+                    if self.evasion:
+                        logging.info("No cd, evasion used")
+                        self.evasion = False
+                    else:
+                        self.grab = False
+                        self.grab_cd = 632 + random.uniform(0.55, 60)
+
+                # Evasion
+                if message_uuid == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
+                    logging.info("Evasion activated")
                     self.grab = True
                     self.grab_cd = 0
-                    logging.info("Grab off cd!")
-                
-                if "Your drop is now off cooldown" in  message.content:
-                    self.drop = True
-                    self.drop_cd = 0
-                    logging.info("drop off cd!")
-                return
-            
-            #Run kevent reply - rtefresh fruit count
-            if "Gather fruit pieces to place on the board below." in message.embeds[0].description:
-                logging.info("Refreshing fruit")
-                self.fruits = 0
-                return
-
-            if "Showing cooldowns" in message.embeds[0].description:
-                logging.info("Getting cooldowns")
-                message_tokens = message.embeds[0].description.split("\n")
-                grab_status = message_tokens[-2]
-                drop_status = message_tokens[-1]
-                self.grab =  "currently available" in grab_status
-                self.drop = "currently available" in drop_status
-            
-                if not self.grab:
-                    grab_time = grab_status.split("`")[1]
-                    val = grab_time.split(" ")[0]
-                    unit = grab_time.split(" ")[1]
-                    seconds_for_grab = 660
-                    if unit == "minutes":
-                        seconds_for_grab = int(val)*60
-                    else:
-                        seconds_for_grab = int(val)
-                    self.grab_cd = seconds_for_grab + random.uniform(30, 100)
-                else:
-                    self.grab_cd = random.uniform(30, 100)
-                if not self.drop:
-                    drop_time = drop_status.split("`")[1]
-                    val = drop_time.split(" ")[0]
-                    unit = drop_time.split(" ")[1]
-                    seconds_for_drop = 1800
-                    if unit == "minutes":
-                        seconds_for_drop = int(val)*60
-                    else:
-                        seconds_for_drop = int(val)
-                    drop_time = drop_status.split("`")[1]
-                    self.drop_cd = seconds_for_drop + random.uniform(30, 500)
-
-                logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
-                logging.info(f"Grab cd : {self.grab_cd}, Drop cd: {self.drop_cd}")
+                    self.evasion = True
                 
 
-        # Message in channel
-        if cid in follow_channels:
-
-            message_content = message.content
-            message_uuid = message.author.id
-
-            if str(id) in message_content:
-                logging.debug(f"Message with id - content: {message_content}")
-
-            # karuta message for fruit
-            if message_uuid == karuta_id and f"<@{str(id)}>, you gathered a fruit piece" in message_content:
-                self.fruits += 1
-                logging.info(f"got a fruit {self.fruits}")
-    
-            #took a card- grab goes on cd
-            if message_uuid == karuta_id and (f"<@{str(id)}> took the" in message_content or f"<@{str(id)}> fought off" in message_content):
-                logging.info(f"Took a card: message {message_content}")
-
-                if self.evasion:
-                    logging.info("No cd, evasion used")
-                    self.evasion = False
-                else:
-                    self.grab = False
-                    self.grab_cd = 632 + random.uniform(0.55, 60)
-
-            # Evasion
-            if message_uuid == karuta_id and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
-                logging.info("Evasion activated")
-                self.grab = True
-                self.grab_cd = 0
-                self.evasion = True
-            
-
-            if message_uuid == karuta_id and f"<@{str(id)}>, you must wait" in message_content:
-                if "before grabbing" in message_content:
-                    grab_time = message_content.split("`")[1]
-                    val = grab_time.split(" ")[0]
-                    unit = grab_time.split(" ")[1]
-                    seconds_for_grab = 660
-                    if unit == "minutes":
-                        seconds_for_grab = int(val)*60
-                    else:
-                        seconds_for_grab = int(val)
-                    grab_delay= seconds_for_grab + random.uniform(30, 100)
-                    logging.info(f"Got grab warning - updating grab cd to {grab_delay}")
-                    self.grab_cd = grab_delay
-                    self.grab = False
-
-                if "before dropping" in message_content:
-                    drop_time = message_content.split("`")[1]
-                    val = drop_time.split(" ")[0]
-                    unit = drop_time.split(" ")[1]
-                    seconds_for_drop = 60*30
-                    if unit == "minutes":
-                        seconds_for_drop = int(val)*60
-                    else:
-                        seconds_for_drop = int(val)
-                    drop_delay = seconds_for_drop + random.uniform(30, 100)
-                    logging.info(f"Got drop warning - updating drop cd to {drop_delay}")
-                    self.drop_cd = drop_delay
-                    self.drop = False
-
-
-            # Karuta message for personal drop
-            if message_uuid == karuta_id and str(id) in message_content:
-                components = message.components
-                if len(components) > 0:
-                    first_row = components[0]
-                    buttons : list[discord.Button] = first_row.children
-                    await self.wait_for("message_edit", check=mcheck)
-                    click_delay = random.uniform(0.2, 0.8)
-                    best_index, rating = await self.get_best_card_index(message)
-                    if rating == 4:
-                        click_delay = random.uniform(0.01, 0.1)
-                    new_button = message.components[0].children[best_index]
-                    await asyncio.sleep(click_delay)
-                    logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
-                    await new_button.click()
-                    self.grab = False
-                    self.grab_cd += 632 + random.uniform(0.55, 60)
-
-                    # Get fruits
-                    if message.components[0].children[-1].emoji.name == "🍉":
-                        logging.info("fruit detected")
-                        if self.fruits < MAX_FRUITS:
-                            logging.info("grabbing fruit")
-                            click_delay = random.uniform(0.55, 1)
-                            await asyncio.sleep(click_delay)
-                            fruit_button = message.components[0].children[-1]
-                            await fruit_button.click()
+                if message_uuid == karuta_id and f"<@{str(id)}>, you must wait" in message_content:
+                    if "before grabbing" in message_content:
+                        grab_time = message_content.split("`")[1]
+                        val = grab_time.split(" ")[0]
+                        unit = grab_time.split(" ")[1]
+                        seconds_for_grab = 660
+                        if unit == "minutes":
+                            seconds_for_grab = int(val)*60
                         else:
-                            logging.info("skipping fruit")
+                            seconds_for_grab = int(val)
+                        grab_delay= seconds_for_grab + random.uniform(30, 100)
+                        logging.info(f"Got grab warning - updating grab cd to {grab_delay}")
+                        self.grab_cd = grab_delay
+                        self.grab = False
 
-
-                    await self.afterclick()
-
-            if message_uuid == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
-                logging.info("Generosity activated")
-                self.drop = True
-                self.drop_cd = 0
-                
-            # Free drop
-            if message_uuid == karuta_id and "since this server is currently active" in message.content:
-                logging.info("Got message from dropped card")
-                if len(message.attachments) <= 0:
-                    return
-                components = message.components
-                await self.wait_for("message_edit", check=mcheck)
-                if len(components) > 0:
-                    # Get fruits
-                    if message.components[0].children[-1].emoji.name == "🍉":
-                        logging.info("fruit detected - public drop")
-
-                        if self.fruits < MAX_FRUITS:
-                            click_delay = random.uniform(0.55, 1)
-                            await asyncio.sleep(click_delay)
-                            fruit_button = message.components[0].children[-1]
-                            await fruit_button.click()
-                            await asyncio.sleep(click_delay)
-                            logging.info("Tried to grab fruit")
+                    if "before dropping" in message_content:
+                        drop_time = message_content.split("`")[1]
+                        val = drop_time.split(" ")[0]
+                        unit = drop_time.split(" ")[1]
+                        seconds_for_drop = 60*30
+                        if unit == "minutes":
+                            seconds_for_drop = int(val)*60
                         else:
-                            logging.info("skipping fruit")
+                            seconds_for_drop = int(val)
+                        drop_delay = seconds_for_drop + random.uniform(30, 100)
+                        logging.info(f"Got drop warning - updating drop cd to {drop_delay}")
+                        self.drop_cd = drop_delay
+                        self.drop = False
 
 
-                if not self.grab:
-                    logging.info("Cannot grab free card - on cd :(")
-                    return
-                
-                if self.drop:
-                    logging.info("Skip grabbing free card, drop available")
-                    return
-
-                if len(components) > 0:
-                    first_row = components[0]
-                    buttons : list[discord.Button] = first_row.children
-                    click_delay = random.uniform(0.55, 1.2)
-
-                    best_index = random.randint(0, len(components)-1)
-                    rating = 10
-                    if ENABLE_OCR:
+                # Karuta message for personal drop
+                if message_uuid == karuta_id and str(id) in message_content:
+                    components = message.components
+                    if len(components) > 0:
+                        first_row = components[0]
+                        buttons : list[discord.Button] = first_row.children
                         best_index, rating = await self.get_best_card_index(message)
-                        click_delay = random.uniform(0.2, 0.5)
+                        await self.wait_for("message_edit", check=mcheck)
+                        click_delay = random.uniform(0.2, 0.8)
                         if rating == 4:
                             click_delay = random.uniform(0.01, 0.1)
-
-                    if rating < 2:
-                        logging.info("Rating too low, skipping")
-                    else:
-                        logging.info("Rating good, lets grab")
                         new_button = message.components[0].children[best_index]
                         await asyncio.sleep(click_delay)
                         logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                         await new_button.click()
                         self.grab = False
-                        self.grab_cd += 65 + random.uniform(0.55, 10)
+                        self.grab_cd += 632 + random.uniform(0.55, 60)
+
+                        # Get fruits
+                        if message.components[0].children[-1].emoji.name == "🍉":
+                            logging.info("fruit detected")
+                            if self.fruits < MAX_FRUITS:
+                                logging.info("grabbing fruit")
+                                click_delay = random.uniform(0.55, 1)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                            else:
+                                logging.info("skipping fruit")
+
+
                         await self.afterclick()
+
+                if message_uuid == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
+                    logging.info("Generosity activated")
+                    self.drop = True
+                    self.drop_cd = 0
+                    
+                # Free drop
+                if message_uuid == karuta_id and "since this server is currently active" in message.content:
+                    logging.info("Got message from dropped card")
+                    if len(message.attachments) <= 0:
+                        return
+                    components = message.components
+
+                    waited_for_edit = False
+
+
+                    if self.grab and not self.drop:
+                        
+                        click_delay = random.uniform(0.55, 1.2)
+                        rating = 10
+                        if ENABLE_OCR:
+                            best_index, rating = await self.get_best_card_index(message)
+                            click_delay = random.uniform(0.2, 0.5)
+                            if rating == 4:
+                                click_delay = random.uniform(0.1, 0.2)
+                                logging.info(f"Clicking fast {click_delay}")
+                        await self.wait_for("message_edit", check=mcheck)
+                        waited_for_edit = True
+                        logging.info("Lets try to grab - drop is on cd")
+                        if len(components) > 0:
+                            first_row = components[0]
+                            
+                            best_index = random.randint(0, len(components)-1)
+
+                            if rating < 2:
+                                logging.info("Rating too low, skipping")
+                            else:
+                                logging.info("Rating good, lets grab")
+                                new_button = message.components[0].children[best_index]
+                                await asyncio.sleep(click_delay)
+                                logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+                                await new_button.click()
+                                self.grab = False
+                                self.grab_cd += 65 + random.uniform(0.55, 10)
+                                await self.afterclick()
+
+                    if len(components) > 0:
+                        # Get fruits
+                        if message.components[0].children[-1].emoji.name == "🍉":
+                            logging.info("fruit detected - public drop")
+
+                            if not waited_for_edit:
+                                await self.wait_for("message_edit", check=mcheck)
+                                waited_for_edit = True
+
+                            if self.fruits < MAX_FRUITS:
+                                click_delay = random.uniform(0.55, 1)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                                await asyncio.sleep(click_delay)
+                                logging.info("Tried to grab fruit")
+                            else:
+                                logging.info("skipping fruit")
+
 
     async def get_best_card_index(self, message):
         start = time.time()

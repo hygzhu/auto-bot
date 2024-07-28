@@ -91,6 +91,9 @@ class MyClient(discord.Client):
 
 
     async def drop_card(self):
+        
+        self.drop = False
+        self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 243)
         channel = self.get_channel(drop_channel)
         if self.timer != 0:
             await asyncio.sleep(self.timer)
@@ -99,9 +102,6 @@ class MyClient(discord.Client):
             await asyncio.sleep(random.uniform(0.2, 1))
         await channel.send("kd")
         self.timer += random.uniform(0.2, 1)
-        self.drop = False
-        self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 243)
-        self.grab_cd = 0
         logging.info(f"Auto Dropped Cards")
         
         

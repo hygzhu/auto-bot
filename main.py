@@ -304,6 +304,8 @@ class MyClient(discord.Client):
                     await self.wait_for("message_edit", check=mcheck)
                     click_delay = random.uniform(0.2, 0.8)
                     best_index, rating = await self.get_best_card_index(message)
+                    if rating == 4:
+                        click_delay = random.uniform(0.01, 0.1)
                     new_button = message.components[0].children[best_index]
                     await asyncio.sleep(click_delay)
                     logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
@@ -316,7 +318,7 @@ class MyClient(discord.Client):
                         logging.info("fruit detected")
                         if self.fruits < MAX_FRUITS:
                             logging.info("grabbing fruit")
-                            click_delay = random.uniform(0.55, 2)
+                            click_delay = random.uniform(0.55, 1)
                             await asyncio.sleep(click_delay)
                             fruit_button = message.components[0].children[-1]
                             await fruit_button.click()
@@ -372,6 +374,8 @@ class MyClient(discord.Client):
                     if ENABLE_OCR:
                         best_index, rating = await self.get_best_card_index(message)
                         click_delay = random.uniform(0.2, 0.5)
+                        if rating == 4:
+                            click_delay = random.uniform(0.01, 0.1)
 
                     if rating < 2:
                         logging.info("Rating too low, skipping")

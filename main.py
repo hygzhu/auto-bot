@@ -221,12 +221,12 @@ class MyClient(discord.Client):
                 return
             
             #Run kevent reply - rtefresh fruit count
-            if message.embeds and "Gather fruit pieces to place on the board below." in message.embeds[0].description:
+            if len(message.embeds) > 0 and "Gather fruit pieces to place on the board below." in message.embeds[0].description:
                 logging.info("Refreshing fruit")
                 self.fruits = 0
                 return
 
-            if message.embeds and "Showing cooldowns" in message.embeds[0].description:
+            if len(message.embeds) > 0 and "Showing cooldowns" in message.embeds[0].description:
                 logging.info("Getting cooldowns")
                 message_tokens = message.embeds[0].description.split("\n")
                 grab_status = message_tokens[-2]
@@ -337,9 +337,10 @@ class MyClient(discord.Client):
                         await self.wait_for("message_edit", check=mcheck, timeout=3)
                     except TimeoutError as e:
                         logging.error(f"Wait for timed out {e}")
-                    click_delay = random.uniform(0.2, 0.8)
+                    click_delay = random.uniform(0.2, 1.2)
                     if rating == 4:
-                        click_delay = random.uniform(0.01, 0.1)
+                        logging.info(f"Clicking fast {click_delay}")
+                        click_delay = random.uniform(0.1, 0.2)
                     new_button = message.components[0].children[best_index]
                     await asyncio.sleep(click_delay)
                     logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
@@ -378,12 +379,12 @@ class MyClient(discord.Client):
 
                 if self.grab and not self.drop:
                     if len(components) > 0:
-                        click_delay = random.uniform(0.55, 1.2)
+                        click_delay = random.uniform(0.55, 1.5)
                         rating = 10
                         best_index = random.randint(0, len(components)-1)
                         if ENABLE_OCR:
                             best_index, rating = await self.get_best_card_index(message)
-                            click_delay = random.uniform(0.2, 0.5)
+                            click_delay = random.uniform(0.55, 1.5)
                             if rating == 4:
                                 click_delay = random.uniform(0.1, 0.2)
                                 logging.info(f"Clicking fast {click_delay}")
@@ -424,7 +425,7 @@ class MyClient(discord.Client):
                             waited_for_edit = True
 
                         if self.fruits < MAX_FRUITS:
-                            click_delay = random.uniform(0.55, 1)
+                            click_delay = random.uniform(0.55, 1.5)
                             await asyncio.sleep(click_delay)
                             fruit_button = message.components[0].children[-1]
                             await fruit_button.click()

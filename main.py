@@ -89,6 +89,7 @@ class MyClient(discord.Client):
         self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
         new_channels = list(set(DROP_CHANNELS) - set([self.last_dropped_channel]))
         channel = self.get_channel(random.choice(new_channels))
+        self.last_dropped_channel = channel
         if self.timer != 0:
             await asyncio.sleep(self.timer)
             self.timer = 0
@@ -464,7 +465,6 @@ class MyClient(discord.Client):
                 return False
 
         self.check_for_dm(message)
-       
 
         # Message in channel
         message_content = message.content

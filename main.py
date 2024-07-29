@@ -399,6 +399,9 @@ class MyClient(discord.Client):
                                 logging.info("skipping fruit")
 
                         click_delay = random.uniform(0.8, 5)
+                        if rating < 1:
+                            click_delay = random.uniform(4, 30)
+
                         logging.info(f"Rating too low clicking slow {click_delay}")
                         new_button = message.components[0].children[best_index]
                         await asyncio.sleep(click_delay)

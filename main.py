@@ -50,20 +50,20 @@ DROP_STATUS = args.drop
 
 f = open(args.c)
 data = json.load(f)
-token = data["token"]
-author_name = data["name"]
-id = data["id"]
-dm_channel = data["dm_channel"]
-drop_channels = data["drop_channels"]
-follow_channels = data["follow_channels"]
+logging.info(f"Loaded config {data}")
+
+TOKEN = data["token"]
+AUTHOR_NAME = data["name"]
+USERID = data["id"]
+DM_CHANNEL = data["dm_channel"]
+DROP_CHANNELS = data["drop_channels"]
+FOLLOW_CHANNELS = data["follow_channels"]
 
 MAX_FRUITS = 3
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
 path_to_ocr = "temp"
-
-
 
 class MyClient(discord.Client):
     def __init__(self, **kwargs):
@@ -81,13 +81,13 @@ class MyClient(discord.Client):
         self.evasion = False
         self.generosity = False
         self.lock = asyncio.Lock()
-        self.last_dropped_channel = random.choice(drop_channels)
+        self.last_dropped_channel = random.choice(DROP_CHANNELS)
 
     async def drop_card(self):
         
         self.drop = False
         self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
-        new_channels = list(set(drop_channels) - set([self.last_dropped_channel]))
+        new_channels = list(set(DROP_CHANNELS) - set([self.last_dropped_channel]))
         channel = self.get_channel(random.choice(new_channels))
         if self.timer != 0:
             await asyncio.sleep(self.timer)
@@ -169,7 +169,7 @@ class MyClient(discord.Client):
         
         # Early return
         cid = message.channel.id
-        if (cid not in follow_channels + [dm_channel]):
+        if (cid not in FOLLOW_CHANNELS + [DM_CHANNEL]):
             return
         if message.author.id != KARUTA_ID:
             return
@@ -242,13 +242,13 @@ class MyClient(discord.Client):
     
     def check_fruit_grab(self, message_uuid, message_content):
         # karuta message for fruit
-        if message_uuid == KARUTA_ID and f"<@{str(id)}>, you gathered a fruit piece" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you gathered a fruit piece" in message_content:
             self.fruits += 1
             logging.info(f"got a fruit {self.fruits}")
 
     def check_for_card_grab(self, message_uuid, message_content):
         #took a card- grab goes on cd
-        if message_uuid == KARUTA_ID and (f"<@{str(id)}> took the" in message_content or f"<@{str(id)}> fought off" in message_content):
+        if message_uuid == KARUTA_ID and (f"<@{str(USERID)}> took the" in message_content or f"<@{str(USERID)}> fought off" in message_content):
             logging.info(f"Took a card: message {message_content}")
 
             if self.evasion:
@@ -261,14 +261,14 @@ class MyClient(discord.Client):
 
     def check_for_evasion(self, message_uuid, message_content ):
         # Evasion
-        if message_uuid == KARUTA_ID and f"<@{str(id)}>, your **Evasion** blessing has activated" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Evasion** blessing has activated" in message_content:
             logging.info("Evasion activated")
             self.grab = True
             self.grab_cd = 0
             self.evasion = True
 
     def check_for_cooldown_warning(self, message_uuid, message_content):
-        if message_uuid == KARUTA_ID and f"<@{str(id)}>, you must wait" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you must wait" in message_content:
             if "before grabbing" in message_content:
                 grab_time = message_content.split("`")[1]
                 val = grab_time.split(" ")[0]
@@ -299,7 +299,7 @@ class MyClient(discord.Client):
 
     async def check_personal_drop(self, message_uuid, message_content, message, check_for_message_button_edit):
         # Karuta message for personal drop
-        if message_uuid == KARUTA_ID and str(id) in message_content:
+        if message_uuid == KARUTA_ID and str(USERID) in message_content:
             components = message.components
             if len(components) > 0:
                 logging.info("Personal drop")
@@ -368,7 +368,7 @@ class MyClient(discord.Client):
                 await self.add_short_delay()
 
     def check_for_generosity(self, message_uuid, message_content ):
-        if message_uuid == KARUTA_ID and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Generosity** blessing has activated" in message_content:
             logging.info("Generosity activated")
             self.generosity = True
 
@@ -469,7 +469,7 @@ class MyClient(discord.Client):
         # Message in channel
         message_content = message.content
         message_uuid = message.author.id
-        if str(id) in message_content:
+        if str(USERID) in message_content:
             logging.debug(f"Message with id - content: {message_content}")
 
         self.check_fruit_grab(message_uuid, message_content)
@@ -589,7 +589,7 @@ class MyClient(discord.Client):
     
 def run():
     client = MyClient()
-    client.run(token)
+    client.run(TOKEN)
 
 if __name__ == "__main__":
     run()

@@ -36,7 +36,7 @@ karuta_name = "Karuta"
 karuta_id = 646937666251915264
 
 SECONDS_FOR_GRAB = 312
-SECONDS_FOR_DROP = 1816
+SECONDS_FOR_DROP = 1816/2
 
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
@@ -55,10 +55,10 @@ token = data["token"]
 author_name = data["name"]
 id = data["id"]
 dm_channel = data["dm_channel"]
-drop_channel = data["drop_channel"]
+drop_channels = data["drop_channels"]
 follow_channels = data["follow_channels"]
 
-MAX_FRUITS = 5
+MAX_FRUITS = 3
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
@@ -96,7 +96,7 @@ class MyClient(discord.Client):
         
         self.drop = False
         self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 243)
-        channel = self.get_channel(drop_channel)
+        channel = self.get_channel(random.choice(drop_channels))
         if self.timer != 0:
             await asyncio.sleep(self.timer)
             self.timer = 0
@@ -132,8 +132,8 @@ class MyClient(discord.Client):
             eastern = pytz.timezone('US/Eastern')
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
-
-            while is_hour_between(hour, 1, 6):
+            logging.info(f"Hour is {hour}")
+            while is_hour_between(1, 7, hour):
                 sleep_time = random.uniform(100, 600)
                 logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
                 self.sleeping = True
@@ -338,7 +338,10 @@ class MyClient(discord.Client):
                 components = message.components
                 if len(components) > 0:
                     logging.info("Personal drop")
-                    best_index, rating = await self.get_best_card_index(message)
+                    try:
+                        best_index, rating = await self.get_best_card_index(message)
+                    except Exception as e:
+                        logging.error(f"OCR machine broke {e}")
                     try:
                         await self.wait_for("message_edit", check=mcheck, timeout=3)
                     except TimeoutError as e:
@@ -406,6 +409,10 @@ class MyClient(discord.Client):
             # Free drop
             if message_uuid == karuta_id and "since this server is currently active" in message.content:
                 logging.info("Got message from public drop")
+
+                if cid == 1006000542578901052:
+                    logging.info("Ignore guild for now")
+                    return
                 if len(message.attachments) <= 0:
                     return
                 components = message.components
@@ -418,7 +425,10 @@ class MyClient(discord.Client):
                         rating = 10
                         best_index = random.randint(0, len(components)-1)
                         if ENABLE_OCR:
-                            best_index, rating = await self.get_best_card_index(message)
+                            try:
+                                best_index, rating = await self.get_best_card_index(message)
+                            except Exception as e:
+                                logging.error(f"OCR machine broke {e}")
                             click_delay = random.uniform(0.55, 1.5)
                             if rating == 4:
                                 click_delay = random.uniform(0.1, 0.2)
@@ -459,15 +469,19 @@ class MyClient(discord.Client):
                                 logging.error(f"Wait for timed out {e}")
                             waited_for_edit = True
 
-                        if self.fruits < MAX_FRUITS:
-                            click_delay = random.uniform(0.55, 1.5)
-                            await asyncio.sleep(click_delay)
-                            fruit_button = message.components[0].children[-1]
-                            await fruit_button.click()
-                            await asyncio.sleep(click_delay)
-                            logging.info("Tried to grab fruit")
+                        random_get_fruit = random.choice([True,True,True,False])
+                        if random_get_fruit:
+                            if self.fruits < MAX_FRUITS:
+                                click_delay = random.uniform(0.55, 1.5)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                                await asyncio.sleep(click_delay)
+                                logging.info("Tried to grab fruit")
+                            else:
+                                logging.info("skipping fruit, we at max")
                         else:
-                            logging.info("skipping fruit")
+                            logging.info("skipping fruit, random says no")
 
 
     async def get_best_card_index(self, message):

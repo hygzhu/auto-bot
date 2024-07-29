@@ -1,8 +1,11 @@
 import discord
 import os
-
+import logging
+from rapidfuzz import process
+from rapidfuzz import fuzz
 from enum import Enum
 from ocr import *
+from wishlistdb import *
 
 class DisplayStatus(Enum):
     PENDING = 1
@@ -287,3 +290,61 @@ async def preProcessImg(saveFolderPath, imagePath, ocrPath, cardnum) -> list[tup
         cardPathList.append((cardTopPath, cardBotPath, cardPrintPath))
         
     return cardPathList
+
+# Finds the best match by series first, then character with >1 wishlists
+# Returns found, matchedseries, matchedcharacter, wishlistcount
+def findBestMatch(seriesToLookFor, charToLookFor, saved_seriesdb, saved_characterdb) -> tuple[bool, str, str, int]:
+    seriesBestMatch = process.extractOne(seriesToLookFor, saved_seriesdb)
+    logging.debug("Best series match: " + str(seriesBestMatch))
+
+    # check series name first and see if we can find a matching series
+    if seriesBestMatch[1] >= 70:
+        matchedSeries = seriesBestMatch[0]
+        characterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE series LIKE ? ORDER BY wishlistcount desc, series asc, character asc", (f"%{matchedSeries}%",))
+
+        # then see if we can find a matching character from that series
+        charBestMatch = process.extractOne(charToLookFor, characterDB)
+        logging.debug("Best Series Match >= 70, Best char match: " + str(charBestMatch))
+        
+        # if the character is also close enough, that works
+        if charBestMatch[1] >= 70 or (seriesBestMatch[1] >= 90 and charBestMatch[1] >= 65):
+            matchedChar = charBestMatch[0]
+            queryResult = queryWishList("SELECT DISTINCT wishlistcount FROM cardinfo WHERE series = ? and character = ? ORDER BY wishlistcount desc, series asc, character asc", (matchedSeries, matchedChar,))
+            if len(queryResult) > 0:
+                wishlistcount = queryResult[0]
+                logging.debug("Best match: " + matchedChar + " from " + matchedSeries)
+                return (True, matchedSeries, matchedChar, wishlistcount)
+            # if we matched the series but can't find a character, they're probably not important
+            # elif seriesBestMatch[1] >= 90:
+            #     foundAny = True
+            #     resultMsg += wishlistMessage(cardpos, matchedSeries, "N/A", "???")
+        # if we matched the series but can't find a character, they're probably not important
+        # elif seriesBestMatch[1] >= 90:
+        #     foundAny = True
+        #     resultMsg += wishlistMessage(cardpos, matchedSeries, "N/A", "???")
+    # Didn't match a series, must rely only on character name and find the closest series
+    charBestMatch = process.extractOne(charToLookFor, saved_characterdb)
+    logging.debug("Best char match: " + str(charBestMatch))
+
+    if charBestMatch[1] >= 90:
+        matchedChar = charBestMatch[0]
+        seriesDB = queryWishList("SELECT DISTINCT series FROM cardinfo WHERE character = ? ORDER BY wishlistcount desc, series asc, character asc", (matchedChar,))
+        seriesBestMatchNarrowed = process.extractOne(seriesToLookFor, seriesDB)
+        logging.debug("Best Char Match >= 90, Best series match: " + str(seriesBestMatchNarrowed))
+
+        if seriesBestMatchNarrowed[1] >= 65:
+            matchedSeries = seriesBestMatchNarrowed[0]
+            queryResult = queryWishList("SELECT DISTINCT wishlistcount FROM cardinfo WHERE series = ? and character = ? ORDER BY wishlistcount desc, series asc, character asc", (matchedSeries, matchedChar,))
+            if len(queryResult) > 0:
+                wishlistcount = queryResult[0]
+                logging.debug("Best match: " + matchedChar + " from " + matchedSeries)
+                return (True, matchedSeries, matchedChar, wishlistcount)
+    return (False, "", "", -1)
+
+def is_hour_between(start, end, now):
+    is_between = False
+
+    is_between |= start <= now <= end
+    is_between |= end < start and (start <= now or now <= end)
+
+    return is_between

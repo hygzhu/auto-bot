@@ -91,15 +91,22 @@ class MyClient(discord.Client):
         
         self.drop = False
         self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
+
         new_channels = list(set(DROP_CHANNELS) - set([self.last_dropped_channel]))
-        channel = self.get_channel(random.choice(new_channels))
-        self.last_dropped_channel = channel
+        selected_channel = random.choice(new_channels)
+        # TODO clan ovverride
+        selected_channel = random.choice([1006000542578901052, 1006000542578901052, 1006000542578901052, selected_channel])
+
+        self.last_dropped_channel = selected_channel
+        channel = self.get_channel(selected_channel)
+
+
         if self.timer != 0:
             await asyncio.sleep(self.timer)
             self.timer = 0
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
-        logging.info("Dropping in channel")
+        logging.info(f"Dropping in channel {selected_channel}")
         await channel.send("kd")
         self.timer += random.uniform(5, 90)
         logging.info(f"Auto Dropped Cards")

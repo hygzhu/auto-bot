@@ -163,12 +163,20 @@ class MyClient(discord.Client):
                     
                 if self.grab_cd != 0:
                     logging.info(f"Grab on cd {self.grab_cd}, waiting")
+                    og_grab_cd = self.grab_cd
                     await asyncio.sleep(self.grab_cd)
                     # Using shared vars here - need lock
                     async with self.lock:
-                        self.drop_cd = max(0, self.drop_cd - self.grab_cd)
-                        self.grab_cd = 0
-                        self.grab = True
+                        if self.grab_cd == og_grab_cd:
+                            logging.info(f"Grab cd didnt change, setting to 0")
+                            # Race condition, need to check grab cd didnt change
+                            self.drop_cd = max(0, self.drop_cd - self.grab_cd)
+                            self.grab_cd = 0
+                            logging.info(f"Grab cd set to {self.grab_cd}")
+                            self.grab = True
+                        else:
+                            logging.info(f"Grab cd changed")
+
                 else:
                     #just wait a few before looping
                     await asyncio.sleep(random.uniform(2, 5))
@@ -234,8 +242,10 @@ class MyClient(discord.Client):
                     else:
                         seconds_for_grab = int(val)
                     self.grab_cd = seconds_for_grab + random.uniform(5, 30)
+                    logging.info(f"Grab cd set to {self.grab_cd}")
                 else:
                     self.grab_cd = random.uniform(5, 25)
+                    logging.info(f"Grab cd set to {self.grab_cd}")
                 if not self.drop:
                     drop_time = drop_status.split("`")[1]
                     val = drop_time.split(" ")[0]
@@ -271,6 +281,7 @@ class MyClient(discord.Client):
             else:
                 self.grab = False
                 self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+                logging.info(f"Grab cd set to {self.grab_cd}")
                 logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
 
     def check_for_evasion(self, message_uuid, message_content ):
@@ -347,6 +358,7 @@ class MyClient(discord.Client):
                         await new_button.click()
                         self.grab = False
                         self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+                        logging.info(f"Grab cd set to {self.grab_cd}")
                     else:
                         logging.info("Rating garbage, skip due to generosity")
 
@@ -354,29 +366,51 @@ class MyClient(discord.Client):
                     if rating == 4:
                         logging.info(f"Clicking fast {click_delay}")
                         click_delay = random.uniform(0.1, 0.2)
+                        new_button = message.components[0].children[best_index]
+                        await asyncio.sleep(click_delay)
+                        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+                        await new_button.click()
+                        self.grab = False
+                        self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+                        logging.info(f"Grab cd set to {self.grab_cd}")
+
+                        # Get fruits after
+                        if message.components[0].children[-1].emoji.name == "🍉":
+                            logging.info("fruit detected")
+                            if self.fruits < MAX_FRUITS:
+                                logging.info("grabbing fruit")
+                                click_delay = random.uniform(0.55, 1)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                            else:
+                                logging.info("skipping fruit")
                     if rating < 2:
+                        # Get fruits first
+                        if message.components[0].children[-1].emoji.name == "🍉":
+                            logging.info("fruit detected")
+                            if self.fruits < MAX_FRUITS:
+                                logging.info("grabbing fruit")
+                                click_delay = random.uniform(0.55, 1)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                            else:
+                                logging.info("skipping fruit")
+
                         click_delay = random.uniform(0.8, 5)
                         logging.info(f"Rating too low clicking slow {click_delay}")
-
-                    new_button = message.components[0].children[best_index]
-                    await asyncio.sleep(click_delay)
-                    logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
-                    await new_button.click()
-                    self.grab = False
-                    self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
-
-
-                # Get fruits
-                if message.components[0].children[-1].emoji.name == "🍉":
-                    logging.info("fruit detected")
-                    if self.fruits < MAX_FRUITS:
-                        logging.info("grabbing fruit")
-                        click_delay = random.uniform(0.55, 1)
+                        new_button = message.components[0].children[best_index]
                         await asyncio.sleep(click_delay)
-                        fruit_button = message.components[0].children[-1]
-                        await fruit_button.click()
-                    else:
-                        logging.info("skipping fruit")
+                        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+                        await new_button.click()
+                        self.grab = False
+                        self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+
+
+
+
+
 
 
                 await self.add_short_delay()
@@ -429,6 +463,7 @@ class MyClient(discord.Client):
                         await new_button.click()
                         self.grab = False
                         self.grab_cd = 65 + random.uniform(0.55, 10)
+                        logging.info(f"Grab cd set to {self.grab_cd}")
                         await self.add_short_delay()
                 else:
                     logging.error(f"No components in drop message, {message}")

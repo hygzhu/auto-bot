@@ -35,7 +35,7 @@ logging.basicConfig(
 karuta_name = "Karuta"
 karuta_id = 646937666251915264
 
-SECONDS_FOR_GRAB = 6623
+SECONDS_FOR_GRAB = 312
 SECONDS_FOR_DROP = 1816
 
 parser = argparse.ArgumentParser("parser")
@@ -73,6 +73,7 @@ def is_hour_between(start, end, now):
     return is_between
 
 
+
 class MyClient(discord.Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -87,6 +88,7 @@ class MyClient(discord.Client):
         self.fruits = 0
         self.sleeping = False
         self.evasion = False
+        self.generosity = False
         self.lock = asyncio.Lock()
 
 
@@ -111,7 +113,6 @@ class MyClient(discord.Client):
 
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
-
         # Dm setup
         dm = await self.get_user(karuta_id).create_dm()
 
@@ -158,6 +159,9 @@ class MyClient(discord.Client):
                     await asyncio.sleep(self.grab_cd)
                     self.grab_cd = 0
                     self.grab = True
+                else:
+                    #just wait a few before looping
+                    await asyncio.sleep(random.uniform(2, 5))
 
             except Exception as e:
                 logging.error(e)
@@ -168,7 +172,9 @@ class MyClient(discord.Client):
         
         # Early return
         cid = message.channel.id
-        if (cid not in follow_channels or cid != dm_channel) and message.author.id != karuta_id:
+        if (cid not in follow_channels + [dm_channel]):
+            return
+        if message.author.id != karuta_id:
             return
         if self.sleeping:
             return
@@ -187,7 +193,9 @@ class MyClient(discord.Client):
         
         # Early return
         cid = message.channel.id
-        if (cid not in follow_channels or cid != dm_channel) and message.author.id != karuta_id:
+        if (cid not in follow_channels + [dm_channel]):
+            return
+        if message.author.id != karuta_id:
             return
 
         # Edit check helper
@@ -204,7 +212,7 @@ class MyClient(discord.Client):
                     logging.error(f"Index error")
             else:
                 return False
-        
+
         # Dm messages
         if not message.guild and message.author.id == karuta_id:
             logging.info("Got dm")
@@ -300,7 +308,7 @@ class MyClient(discord.Client):
                     grab_time = message_content.split("`")[1]
                     val = grab_time.split(" ")[0]
                     unit = grab_time.split(" ")[1]
-                    seconds_for_grab = 660
+                    seconds_for_grab = SECONDS_FOR_GRAB
                     if unit == "minutes":
                         seconds_for_grab = int(val)*60
                     else:
@@ -314,7 +322,7 @@ class MyClient(discord.Client):
                     drop_time = message_content.split("`")[1]
                     val = drop_time.split(" ")[0]
                     unit = drop_time.split(" ")[1]
-                    seconds_for_drop = 60*30
+                    seconds_for_drop = SECONDS_FOR_DROP
                     if unit == "minutes":
                         seconds_for_drop = int(val)*60
                     else:
@@ -330,23 +338,51 @@ class MyClient(discord.Client):
                 components = message.components
                 if len(components) > 0:
                     logging.info("Personal drop")
-                    first_row = components[0]
-                    buttons : list[discord.Button] = first_row.children
                     best_index, rating = await self.get_best_card_index(message)
                     try:
                         await self.wait_for("message_edit", check=mcheck, timeout=3)
                     except TimeoutError as e:
                         logging.error(f"Wait for timed out {e}")
                     click_delay = random.uniform(0.2, 1.2)
-                    if rating == 4:
-                        logging.info(f"Clicking fast {click_delay}")
-                        click_delay = random.uniform(0.1, 0.2)
-                    new_button = message.components[0].children[best_index]
-                    await asyncio.sleep(click_delay)
-                    logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
-                    await new_button.click()
-                    self.grab = False
-                    self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+
+
+                    if self.generosity:
+                        self.drop = True
+                        self.drop_cd = 0
+                        self.generosity = False
+                        # skip grab if garbage
+                        
+                        if rating > 2:
+                            click_delay = random.uniform(0.8, 5)
+                            logging.info(f"Rating decent {click_delay}")
+                            if rating == 4:
+                                logging.info(f"Clicking fast {click_delay}")
+                                click_delay = random.uniform(0.1, 0.2)
+
+                            new_button = message.components[0].children[best_index]
+                            await asyncio.sleep(click_delay)
+                            logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+                            await new_button.click()
+                            self.grab = False
+                            self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+                        else:
+                            logging.info("Rating garbage, skip due to generosity")
+
+                    else:
+                        if rating == 4:
+                            logging.info(f"Clicking fast {click_delay}")
+                            click_delay = random.uniform(0.1, 0.2)
+                        if rating < 2:
+                            click_delay = random.uniform(0.8, 5)
+                            logging.info(f"Rating too low clicking slow {click_delay}")
+
+                        new_button = message.components[0].children[best_index]
+                        await asyncio.sleep(click_delay)
+                        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+                        await new_button.click()
+                        self.grab = False
+                        self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+
 
                     # Get fruits
                     if message.components[0].children[-1].emoji.name == "🍉":
@@ -365,8 +401,7 @@ class MyClient(discord.Client):
 
             if message_uuid == karuta_id and f"<@{str(id)}>, your **Generosity** blessing has activated" in message_content:
                 logging.info("Generosity activated")
-                self.drop = True
-                self.drop_cd = 0
+                self.generosity = True
                 
             # Free drop
             if message_uuid == karuta_id and "since this server is currently active" in message.content:

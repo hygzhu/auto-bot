@@ -90,18 +90,21 @@ class MyClient(discord.Client):
         self.evasion = False
         self.generosity = False
         self.lock = asyncio.Lock()
+        self.last_dropped_channel = random.choice(drop_channels)
 
 
     async def drop_card(self):
         
         self.drop = False
         self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
-        channel = self.get_channel(random.choice(drop_channels))
+        new_channels = list(set(drop_channels) - set([self.last_dropped_channel]))
+        channel = self.get_channel(random.choice(new_channels))
         if self.timer != 0:
             await asyncio.sleep(self.timer)
             self.timer = 0
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
+        logging.info("Dropping in channel")
         await channel.send("kd")
         self.timer += random.uniform(0.2, 1)
         logging.info(f"Auto Dropped Cards")
@@ -133,7 +136,12 @@ class MyClient(discord.Client):
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
             logging.info(f"Hour is {hour}")
-            while is_hour_between(1, 7, hour):
+            while is_hour_between(1, 6, hour):
+                utc = pytz.utc
+                now = datetime.now(tz=utc)
+                eastern = pytz.timezone('US/Eastern')
+                loc_dt = now.astimezone(eastern)
+                hour = loc_dt.hour
                 sleep_time = random.uniform(100, 600)
                 logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
                 self.sleeping = True
@@ -183,7 +191,9 @@ class MyClient(discord.Client):
         async with self.lock:
             logging.debug("Processing new message!")
             # process each message atomically -> no race conditions
+            logging.info("------------------------------------------------")
             await self.on_message_helper(message)
+            logging.info("------------------------------------------------")
         logging.debug("Done new message!")
             
 

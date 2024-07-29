@@ -97,7 +97,7 @@ class MyClient(discord.Client):
             await asyncio.sleep(random.uniform(0.2, 1))
         logging.info("Dropping in channel")
         await channel.send("kd")
-        self.timer += random.uniform(0.2, 1)
+        self.timer += random.uniform(5, 90)
         logging.info(f"Auto Dropped Cards")
         
     async def add_short_delay(self):
@@ -117,6 +117,7 @@ class MyClient(discord.Client):
             
             # Wait general delay
             if self.timer != 0:
+                logging.info(f"Doing a wait before we might drop another card {self.timer}")
                 await asyncio.sleep(self.timer)
                 self.timer = 0
 
@@ -141,24 +142,28 @@ class MyClient(discord.Client):
 
             # Do something
             try: 
-                async with dm.typing():
-                    await asyncio.sleep(random.uniform(0.2, 1))
+                # Using shared vars here - need lock
+                async with self.lock:
+                    async with dm.typing():
+                        await asyncio.sleep(random.uniform(0.2, 1))
 
-                    if not self.grab and self.grab_cd == 0:
-                        await dm.send("kcd")
-                        logging.info("Checking cooldowns")
-                        await asyncio.sleep(random.uniform(2, 5))
+                        if not self.grab and self.grab_cd == 0:
+                            await dm.send("kcd")
+                            logging.info("Checking cooldowns")
+                            await asyncio.sleep(random.uniform(2, 5))
 
-                    if DROP_STATUS:
-                        if self.grab and self.drop:
-                            await self.drop_card()
-                
-                
+                        if DROP_STATUS:
+                            if self.grab and self.drop:
+                                await self.drop_card()
+                    
+                    
                 if self.grab_cd != 0:
                     logging.info(f"Grab on cd {self.grab_cd}, waiting")
                     await asyncio.sleep(self.grab_cd)
-                    self.grab_cd = 0
-                    self.grab = True
+                    # Using shared vars here - need lock
+                    async with self.lock:
+                        self.grab_cd = 0
+                        self.grab = True
                 else:
                     #just wait a few before looping
                     await asyncio.sleep(random.uniform(2, 5))
@@ -248,9 +253,12 @@ class MyClient(discord.Client):
             logging.info(f"got a fruit {self.fruits}")
 
     def check_for_card_grab(self, message_uuid, message_content):
-        #took a card- grab goes on cd
+        #took a card - grab goes on cd
         if message_uuid == KARUTA_ID and (f"<@{str(USERID)}> took the" in message_content or f"<@{str(USERID)}> fought off" in message_content):
             logging.info(f"Took a card: message {message_content}")
+
+            if f"<@{str(USERID)}> fought off" in message_content:
+                logging.info("YOU FOUGHT AND WON!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
             if self.evasion:
                 logging.info("No cd, evasion used")
@@ -472,13 +480,16 @@ class MyClient(discord.Client):
         if str(USERID) in message_content:
             logging.debug(f"Message with id - content: {message_content}")
 
-        self.check_fruit_grab(message_uuid, message_content)
-        self.check_for_card_grab(message_uuid, message_content)
-        self.check_for_evasion(message_uuid, message_content)
-        self.check_for_cooldown_warning(message_uuid, message_content)
-        await self.check_personal_drop(message_uuid, message_content, message, check_for_message_button_edit)
-        self.check_for_generosity(message_uuid, message_content)
-        await self.check_public_drop(message_uuid, message_content, message, check_for_message_button_edit)
+        try: 
+            self.check_fruit_grab(message_uuid, message_content)
+            self.check_for_card_grab(message_uuid, message_content)
+            self.check_for_evasion(message_uuid, message_content)
+            self.check_for_cooldown_warning(message_uuid, message_content)
+            await self.check_personal_drop(message_uuid, message_content, message, check_for_message_button_edit)
+            self.check_for_generosity(message_uuid, message_content)
+            await self.check_public_drop(message_uuid, message_content, message, check_for_message_button_edit)
+        except Exception as e:
+            logging.error(f"Something went wrong processing message {e}")
 
     async def get_best_card_index(self, message):
         start = time.time()
@@ -578,7 +589,7 @@ class MyClient(discord.Client):
                         best_idx = idx
 
         
-        logging.info(f"Best card is idx {best_idx}")
+        logging.info(f"Best card is idx {best_idx} with rating {rating}")
 
         end = time.time()
         logging.info(f"Took {end-start} time to get best index")

@@ -95,7 +95,7 @@ class MyClient(discord.Client):
     async def drop_card(self):
         
         self.drop = False
-        self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 243)
+        self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
         channel = self.get_channel(random.choice(drop_channels))
         if self.timer != 0:
             await asyncio.sleep(self.timer)
@@ -137,7 +137,7 @@ class MyClient(discord.Client):
                 sleep_time = random.uniform(100, 600)
                 logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
                 self.sleeping = True
-                await asyncio.sleep()
+                await asyncio.sleep(sleep_time)
             self.sleeping = False
 
             try: 
@@ -177,6 +177,7 @@ class MyClient(discord.Client):
         if message.author.id != karuta_id:
             return
         if self.sleeping:
+            logging.debug("I'm sleeping!")
             return
 
         async with self.lock:
@@ -189,6 +190,7 @@ class MyClient(discord.Client):
     async def on_message_helper(self, message: discord.Message):
 
         if self.sleeping:
+            logging.debug("I'm sleeping!")
             return
         
         # Early return

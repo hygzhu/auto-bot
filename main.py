@@ -84,6 +84,10 @@ class MyClient(discord.Client):
         self.last_dropped_channel = random.choice(DROP_CHANNELS)
 
     async def drop_card(self):
+
+        if self.grab == False:
+            logging.error("Somehow dropping even though grab is false")
+            return
         
         self.drop = False
         self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
@@ -162,6 +166,7 @@ class MyClient(discord.Client):
                     await asyncio.sleep(self.grab_cd)
                     # Using shared vars here - need lock
                     async with self.lock:
+                        self.drop_cd = max(0, self.drop_cd - self.grab_cd)
                         self.grab_cd = 0
                         self.grab = True
                 else:
@@ -378,8 +383,9 @@ class MyClient(discord.Client):
 
     def check_for_generosity(self, message_uuid, message_content ):
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Generosity** blessing has activated" in message_content:
-            logging.info("Generosity activated")
             self.generosity = True
+            self.timer = random.uniform(5, 10)
+            logging.info(f"Generosity activated, updating timer to {self.timer}")
 
     async def check_public_drop(self, message_uuid, message_content, message, check_for_message_button_edit):
         if message_uuid == KARUTA_ID and "since this server is currently active" in message.content:
@@ -392,6 +398,7 @@ class MyClient(discord.Client):
 
             if self.grab and not self.drop:
                 if len(components) > 0:
+
                     click_delay = random.uniform(0.55, 1.5)
                     rating = 10
                     best_index = random.randint(0, len(components)-1)
@@ -424,7 +431,7 @@ class MyClient(discord.Client):
                         self.grab_cd = 65 + random.uniform(0.55, 10)
                         await self.add_short_delay()
                 else:
-                    logging.error("No components in drop message")
+                    logging.error(f"No components in drop message, {message}")
             else:
                 logging.info(f"Cannot grab, on cd {self.grab_cd}")
 

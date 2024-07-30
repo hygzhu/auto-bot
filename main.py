@@ -526,7 +526,7 @@ class MyClient(discord.Client):
                             logging.error(f"Wait for timed out {e}")
                         waited_for_edit = True
 
-                    random_get_fruit = random.choice([True,True,True,False,False])
+                    random_get_fruit = random.choice([True,True,True,False])
                     if random_get_fruit:
                         if self.fruits < MAX_FRUITS:
                             click_delay = random.uniform(0.55, 1.5)

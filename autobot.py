@@ -82,35 +82,39 @@ class MyClient(discord.Client):
         self.generosity = False
         self.lock = asyncio.Lock()
         self.last_dropped_channel = random.choice(DROP_CHANNELS)
+        self.last_hour = 0
 
     async def drop_card(self):
-
-        if self.grab == False:
-            logging.error("Somehow dropping even though grab is false")
-            return
         
-        self.drop = False
-        self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
+        async with self.lock():
 
-        new_channels = list(set(DROP_CHANNELS) - set([self.last_dropped_channel]))
-        selected_channel = random.choice(new_channels)
-        # TODO clan ovverride
-        selected_channel = random.choice([1006000542578901052, 1006000542578901052, 1006000542578901052, selected_channel])
+            if self.grab == False:
+                logging.error("Somehow dropping even though grab is false")
+                return
+            
+            self.drop = False
+            self.drop_cd += SECONDS_FOR_DROP + random.uniform(4, 60)
 
-        self.last_dropped_channel = selected_channel
-        channel = self.get_channel(selected_channel)
+            new_channels = list(set(DROP_CHANNELS) - set([self.last_dropped_channel]))
+            selected_channel = random.choice(new_channels)
+            # TODO clan override
+            selected_channel = random.choice([1006000542578901052, 1006000542578901052, 1006000542578901052, selected_channel])
+
+            self.last_dropped_channel = selected_channel
+            channel = self.get_channel(selected_channel)
 
 
-        if self.timer != 0:
-            await asyncio.sleep(self.timer)
-            self.timer = 0
-        async with channel.typing():
-            await asyncio.sleep(random.uniform(0.2, 1))
-        logging.info(f"Dropping in channel {selected_channel}")
-        await channel.send("kd")
-        self.timer += random.uniform(5, 90)
-        logging.info(f"Auto Dropped Cards")
-        
+            if self.timer != 0:
+                await asyncio.sleep(self.timer)
+                self.timer = 0
+            async with channel.typing():
+                await asyncio.sleep(random.uniform(0.2, 1))
+            
+            logging.info(f"Dropping in channel {selected_channel}")
+            await channel.send("kd")
+            self.timer += random.uniform(5, 90)
+            logging.info(f"Auto Dropped Cards")
+
     async def add_short_delay(self):
         logging.info(f"Adding general delay")
         self.timer = 10 + random.uniform(1, 10)
@@ -150,6 +154,21 @@ class MyClient(discord.Client):
                 self.sleeping = True
                 await asyncio.sleep(sleep_time)
             self.sleeping = False
+
+            #take a break
+            break_time = False
+            if hour != self.last_hour:
+                break_time = random.randint(1,3) == 1
+            if break_time:
+                logging.info("Time for a break!!")
+                sleep_time = random.uniform(500, 900)
+                logging.info(f"break for  {sleep_time}")          
+                self.sleeping = True
+                await asyncio.sleep(sleep_time)
+                self.sleeping = False
+            else:
+                logging.info("No breaks!!")
+            self.last_hour = hour
 
             # Do something
             try: 
@@ -352,8 +371,8 @@ class MyClient(discord.Client):
                     self.generosity = False
                     # skip grab if garbage
                     
-                    if rating > 2:
-                        click_delay = random.uniform(0.8, 5)
+                    if rating > 1:
+                        click_delay = random.uniform(0.8, 2)
                         logging.info(f"Rating decent {click_delay}")
                         if rating == 4:
                             logging.info(f"Clicking fast {click_delay}")
@@ -390,7 +409,7 @@ class MyClient(discord.Client):
                             logging.info("fruit detected")
                             if self.fruits < MAX_FRUITS:
                                 logging.info("grabbing fruit")
-                                click_delay = random.uniform(0.55, 1)
+                                click_delay = random.uniform(0.55, 1.4)
                                 await asyncio.sleep(click_delay)
                                 fruit_button = message.components[0].children[-1]
                                 await fruit_button.click()
@@ -416,7 +435,7 @@ class MyClient(discord.Client):
                             logging.info("fruit detected")
                             if self.fruits < MAX_FRUITS:
                                 logging.info("grabbing fruit")
-                                click_delay = random.uniform(0.55, 1)
+                                click_delay = random.uniform(0.55, 1.4)
                                 await asyncio.sleep(click_delay)
                                 fruit_button = message.components[0].children[-1]
                                 await fruit_button.click()
@@ -429,7 +448,7 @@ class MyClient(discord.Client):
                             logging.info("fruit detected")
                             if self.fruits < MAX_FRUITS:
                                 logging.info("grabbing fruit")
-                                click_delay = random.uniform(0.55, 1)
+                                click_delay = random.uniform(0.55, 1.4)
                                 await asyncio.sleep(click_delay)
                                 fruit_button = message.components[0].children[-1]
                                 await fruit_button.click()
@@ -449,10 +468,6 @@ class MyClient(discord.Client):
                         logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
                         self.grab = False
                         self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
-
-
-
-
 
 
 
@@ -632,7 +647,7 @@ class MyClient(discord.Client):
                 wishlist_val = 3
                 rating = max(rating, 3)
                 logging.info(f"medium WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 100:
+            elif wishlistCount > 20:
                 wishlist_val = 2
                 rating = max(rating, 2)
                 logging.info(f"ok WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")

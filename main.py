@@ -113,7 +113,7 @@ class MyClient(discord.Client):
         
     async def add_short_delay(self):
         logging.info(f"Adding general delay")
-        self.timer += 10 + random.uniform(1, 20)
+        self.timer = 10 + random.uniform(1, 10)
 
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
@@ -363,20 +363,7 @@ class MyClient(discord.Client):
                         await asyncio.sleep(click_delay)
                         logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                         await new_button.click()
-                        self.grab = False
-                        self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
-                        logging.info(f"Grab cd set to {self.grab_cd}")
-                    else:
-                        logging.info("Rating garbage, skip due to generosity")
-
-                else:
-                    if rating == 4:
-                        logging.info(f"Clicking fast {click_delay}")
-                        click_delay = random.uniform(0.1, 0.2)
-                        new_button = message.components[0].children[best_index]
-                        await asyncio.sleep(click_delay)
-                        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
-                        await new_button.click()
+                        logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
                         self.grab = False
                         self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
                         logging.info(f"Grab cd set to {self.grab_cd}")
@@ -390,6 +377,50 @@ class MyClient(discord.Client):
                                 await asyncio.sleep(click_delay)
                                 fruit_button = message.components[0].children[-1]
                                 await fruit_button.click()
+                                logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
+                            else:
+                                logging.info("skipping fruit")
+
+
+                    else:
+                        logging.info("Rating garbage, skip due to generosity")
+
+                        # Get fruits after
+                        if message.components[0].children[-1].emoji.name == "🍉":
+                            logging.info("fruit detected")
+                            if self.fruits < MAX_FRUITS:
+                                logging.info("grabbing fruit")
+                                click_delay = random.uniform(0.55, 1)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                                logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
+                            else:
+                                logging.info("skipping fruit")
+
+                else:
+                    if rating == 4:
+                        logging.info(f"Clicking fast {click_delay}")
+                        click_delay = random.uniform(0.1, 0.2)
+                        new_button = message.components[0].children[best_index]
+                        await asyncio.sleep(click_delay)
+                        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+                        await new_button.click()
+                        logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
+                        self.grab = False
+                        self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
+                        logging.info(f"Grab cd set to {self.grab_cd}")
+
+                        # Get fruits after
+                        if message.components[0].children[-1].emoji.name == "🍉":
+                            logging.info("fruit detected")
+                            if self.fruits < MAX_FRUITS:
+                                logging.info("grabbing fruit")
+                                click_delay = random.uniform(0.55, 1)
+                                await asyncio.sleep(click_delay)
+                                fruit_button = message.components[0].children[-1]
+                                await fruit_button.click()
+                                logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
                             else:
                                 logging.info("skipping fruit")
                     if rating < 2:
@@ -402,18 +433,20 @@ class MyClient(discord.Client):
                                 await asyncio.sleep(click_delay)
                                 fruit_button = message.components[0].children[-1]
                                 await fruit_button.click()
+                                logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
                             else:
                                 logging.info("skipping fruit")
 
                         click_delay = random.uniform(0.8, 5)
                         if rating < 1:
-                            click_delay = random.uniform(4, 30)
+                            click_delay = random.uniform(4, 10)
 
                         logging.info(f"Rating too low clicking slow {click_delay}")
                         new_button = message.components[0].children[best_index]
                         await asyncio.sleep(click_delay)
                         logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                         await new_button.click()
+                        logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
                         self.grab = False
                         self.grab_cd = SECONDS_FOR_GRAB + random.uniform(0.55, 60)
 
@@ -431,7 +464,7 @@ class MyClient(discord.Client):
             self.timer = random.uniform(5, 10)
             logging.info(f"Generosity activated, updating timer to {self.timer}")
 
-    async def check_public_drop(self, message_uuid, message_content, message, check_for_message_button_edit):
+    async def check_public_drop(self, message_uuid, message_content, message: discord.Message, check_for_message_button_edit):
         if message_uuid == KARUTA_ID and "since this server is currently active" in message.content:
             logging.info("Got message from public drop")
             if len(message.attachments) <= 0:
@@ -471,6 +504,7 @@ class MyClient(discord.Client):
                         await asyncio.sleep(click_delay)
                         logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
                         await new_button.click()
+                        logging.info(f"-----------------------ACTION in {message.channel.id}-----------------------------------")
                         self.grab = False
                         self.grab_cd = 65 + random.uniform(0.55, 10)
                         logging.info(f"Grab cd set to {self.grab_cd}")
@@ -492,19 +526,21 @@ class MyClient(discord.Client):
                             logging.error(f"Wait for timed out {e}")
                         waited_for_edit = True
 
-                    random_get_fruit = random.choice([True,True,True,False])
+                    random_get_fruit = random.choice([True,True,True,False,False])
                     if random_get_fruit:
                         if self.fruits < MAX_FRUITS:
                             click_delay = random.uniform(0.55, 1.5)
                             await asyncio.sleep(click_delay)
                             fruit_button = message.components[0].children[-1]
                             await fruit_button.click()
+                            logging.info(f"-----------------------ACTION  in {message.channel.id}-----------------------------------")
                             await asyncio.sleep(click_delay)
                             logging.info("Tried to grab fruit")
                         else:
                             logging.info("skipping fruit, we at max")
                     else:
                         logging.info("skipping fruit, random says no")
+            await self.add_short_delay()
 
     async def on_message_helper(self, message: discord.Message):
 
@@ -567,11 +603,10 @@ class MyClient(discord.Client):
             print_val = -1
             if printNumFromOcr < 100:
                 print_val = 4
-                rating = max(rating, 3)
-                logging.info(f"Wow low print name: {charNameFromOcr} series: {seriesNameFromOcr} print: {printNumFromOcr}")
+                rating = max(rating, 1)
             elif printNumFromOcr < 1000:
                 print_val = 3
-                rating = max(rating, 2)
+                rating = max(rating, 0)
             elif printNumFromOcr < 10000:
                 print_val = 2
             elif printNumFromOcr < 10000:

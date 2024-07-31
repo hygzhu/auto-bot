@@ -136,7 +136,6 @@ class MyClient(discord.Client):
             eastern = pytz.timezone('US/Eastern')
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
-            logging.info(f"Hour is {hour}")
             while is_hour_between(1, 6, hour):
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
@@ -410,8 +409,8 @@ class MyClient(discord.Client):
                     logging.error(f"Wait for timed out {e}")
                 click_delay = random.uniform(0.2, 1.2)
 
-
                 if self.generosity:
+                    logging.info(f"We have generosity")
                     self.drop = True
                     self.generosity = False
                     # skip grab if garbage
@@ -430,20 +429,27 @@ class MyClient(discord.Client):
                         logging.info("Rating garbage, skip due to generosity")
                         await self.check_fruit_in_private_message(message)
                 else:
-                    if rating == 4:
-                        logging.info(f"Clicking fast {click_delay}")
-                        click_delay = random.uniform(0.1, 0.2)
+                    
+                    logging.info(f"Dont have generosity")
+
+                    if rating >= 2:
+                        click_delay = random.uniform(0.3, 1)
+                        if rating == 4:
+                            click_delay = random.uniform(0.1, 0.2)
+                            logging.info(f"Clicking fast {click_delay}")
+                        else:
+                            click_delay = random.uniform(0.3, 1)
+                            logging.info(f"Clicking ok speed {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
-
                         await self.check_fruit_in_private_message(message)
-                    if rating < 2:
+                    else:
                         # Get fruits first
                         await self.check_fruit_in_private_message(message)
-                        click_delay = random.uniform(0.8, 5)
+                        logging.info(f"Rating too low clicking slow {click_delay}")
+                        click_delay = random.uniform(0.8, 3)
                         if rating < 1:
                             click_delay = random.uniform(4, 10)
-                        logging.info(f"Rating too low clicking slow {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
         
@@ -618,11 +624,11 @@ class MyClient(discord.Client):
                 "wlcount": wishlist[1]
             })
 
-        def pad_text(string):
-            return ('{: <30}'.format(str(string)))
+        def pad_text(string, padding):
+            return ('{: <' + str(padding)+'}'.format(str(string)))
 
         logging.info(f"Cards analyzed:\n{"\n".join([
-            f"{ pad_text(dec["name"])}-{pad_text(dec["name"])}-WL: {pad_text(dec["wlcount"])} -Print: {pad_text(dec["printcount"])}"
+            f"{ pad_text(dec["name"], 40)}-{pad_text(dec["name"], 40)}-WL: {pad_text(dec["wlcount"], 10)} -Print: {pad_text(dec["printcount"], 10)}"
             for dec in decision])}")
         best_card = decision[0]
         best_idx = 0

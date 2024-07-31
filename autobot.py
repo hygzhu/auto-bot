@@ -575,12 +575,13 @@ class MyClient(discord.Client):
             print_val = -1
             if printNumFromOcr < 100:
                 print_val = 4
-                rating = max(rating, 1)
+                rating = max(rating, 3)
             elif printNumFromOcr < 1000:
                 print_val = 3
-                rating = max(rating, 0)
+                rating = max(rating, 2)
             elif printNumFromOcr < 10000:
                 print_val = 2
+                rating = max(rating, 1)
             elif printNumFromOcr < 10000:
                 print_val = 1
             elif printNumFromOcr < 50000:
@@ -596,18 +597,33 @@ class MyClient(discord.Client):
             found, matchedSeries, matchedChar, wishlistCount = findBestMatch(cardSeries, cardChar, self.seriesDB, self.characterDB)
             
             wishlist_val = 0
-            if wishlistCount > 1000:
-                wishlist_val = 4
-                rating = max(rating, 4)
+            if wishlistCount > 5000:
+                wishlist_val = 10
+                rating = max(rating, 10)
+                logging.info(f"Wow crazy WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
+            elif wishlistCount > 1000:
+                wishlist_val = 9
+                rating = max(rating, 6)
                 logging.info(f"Wow high WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount > 500:
-                wishlist_val = 3
-                rating = max(rating, 3)
+                wishlist_val = 8
+                rating = max(rating, 5)
                 logging.info(f"medium WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
+            elif wishlistCount > 100:
+                wishlist_val = 7
+                rating = max(rating, 5)
+                logging.info(f"small WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
+            elif wishlistCount > 30:
+                wishlist_val = 7
+                rating = max(rating, 4)
+                logging.info(f"tiny WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount >= 10:
-                wishlist_val = 2
+                wishlist_val = 3
                 rating = max(rating, 2)
-                logging.info(f"ok WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
+                logging.info(f"mini WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
+            elif wishlistCount > 5:
+                wishlist_val = 2
+                rating = max(rating, 1)
             elif wishlistCount > 0:
                 wishlist_val = 1
             

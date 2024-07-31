@@ -36,6 +36,8 @@ logging.basicConfig(
         logging.FileHandler(f"output.log.{datetime.now().timestamp()}", mode="w"),
     ])
 
+logging.Formatter.converter = lambda *args: datetime.now(tz).timetuple()
+
 karuta_name = "Karuta"
 KARUTA_ID = 646937666251915264
 
@@ -117,7 +119,6 @@ class MyClient(discord.Client):
         logging.info(f"Creating short delay of {short_delay}")
         await asyncio.sleep(short_delay)
         
-
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
         # Dm setup
@@ -594,11 +595,11 @@ class MyClient(discord.Client):
                 wishlist_val = 3
                 rating = max(rating, 3)
                 logging.info(f"medium WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 20:
+            elif wishlistCount >= 10:
                 wishlist_val = 2
                 rating = max(rating, 2)
                 logging.info(f"ok WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 10:
+            elif wishlistCount > 0:
                 wishlist_val = 1
             
             results.append((wishlist_val, wishlistCount))
@@ -616,8 +617,11 @@ class MyClient(discord.Client):
                 "wlcount": wishlist[1]
             })
 
+        def pad_text(string):
+            return ('{: <30}'.format(str(string)))
+
         logging.info(f"Cards analyzed:\n{"\n".join([
-            f"{dec["name"]}-{dec["name"]}-WL: {dec["wlcount"]} -Print: {dec["printcount"]}"
+            f"{ pad_text(dec["name"])}-{pad_text(dec["name"])}-WL: {pad_text(dec["wlcount"])} -Print: {pad_text(dec["printcount"])}"
             for dec in decision])}")
         best_card = decision[0]
         best_idx = 0

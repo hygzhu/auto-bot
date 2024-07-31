@@ -115,7 +115,7 @@ class MyClient(discord.Client):
         self.dropped_cards_awaiting_pickup = True
 
     async def add_short_delay(self):
-        short_delay = 10 + random.uniform(1, 10)
+        short_delay = random.uniform(3, 8)
         logging.info(f"Creating short delay of {short_delay}")
         await asyncio.sleep(short_delay)
         
@@ -446,8 +446,9 @@ class MyClient(discord.Client):
                         logging.info(f"Rating too low clicking slow {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
+        
+            await self.add_short_delay()
 
-                await self.add_short_delay()
 
     def check_for_generosity(self, message_uuid, message_content ):
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Generosity** blessing has activated" in message_content:
@@ -498,12 +499,12 @@ class MyClient(discord.Client):
                 else:
                     logging.error(f"No components in drop message, {message}")
             else:
-                logging.info(f"Cannot grab, on cd {self.grab_cd}")
+                logging.info(f"Cannot grab, on cd")
 
             if len(components) > 0:
                 # Get fruits
                 await self.check_fruit_in_public_message(message, waited_for_edit, check_for_message_button_edit)
-            await self.add_short_delay()
+
 
     async def on_message_helper(self, message: discord.Message):
 

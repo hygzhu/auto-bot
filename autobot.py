@@ -645,7 +645,7 @@ class MyClient(discord.Client):
 
 
         logging.info(f"Cards analyzed:\n{"\n".join([
-            f"{dec["name"] : <40}{dec["name"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
+            f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
             for dec in decision])}")
         best_card = decision[0]
         best_idx = 0

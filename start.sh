@@ -7,8 +7,6 @@ echo "Trying to start up"
 # ignore any HUP signals we receive (even though we shouldn't get any regardless)
 trap '' HUP
 . dev_env/bin/activate
-rm output.log.*
-
 echo "Run"
 nohup python3.12 autobot.py -c config2.json -drop -ocr 2> /dev/null &
 

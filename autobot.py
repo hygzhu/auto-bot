@@ -624,11 +624,9 @@ class MyClient(discord.Client):
                 "wlcount": wishlist[1]
             })
 
-        def pad_text(string, padding):
-            return ('{: <' + str(padding)+'}'.format(str(string)))
 
         logging.info(f"Cards analyzed:\n{"\n".join([
-            f"{ pad_text(dec["name"], 40)}-{pad_text(dec["name"], 40)}-WL: {pad_text(dec["wlcount"], 10)} -Print: {pad_text(dec["printcount"], 10)}"
+            f"{dec["name"] : <40}{dec["name"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
             for dec in decision])}")
         best_card = decision[0]
         best_idx = 0

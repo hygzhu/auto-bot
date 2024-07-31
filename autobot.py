@@ -554,8 +554,6 @@ class MyClient(discord.Client):
     async def get_best_card_index(self, message):
         start = time.time()
 
-        rating = 0
-
         cardnum = extractNumCardsFromMessage(message.content)
         tempPath = f"temp/{message.id}"
         os.makedirs(tempPath, exist_ok = True)
@@ -572,62 +570,64 @@ class MyClient(discord.Client):
             ogReadPrint = reader.readtext(cardImageResult[2], detail=0, allowlist ='0123456789.')[0]
             printNumFromOcr = int(str.split(ogReadPrint,".")[0])
 
+            print_rating = 0   
             print_val = -1
             if printNumFromOcr < 100:
                 print_val = 4
-                rating = max(rating, 3)
+                print_rating = 3
             elif printNumFromOcr < 1000:
                 print_val = 3
-                rating = max(rating, 2)
+                print_rating = 2
             elif printNumFromOcr < 10000:
                 print_val = 2
-                rating = max(rating, 1)
+                print_rating = 1
             elif printNumFromOcr < 10000:
                 print_val = 1
             elif printNumFromOcr < 50000:
                 print_val = 0
 
-            cardList.append((charNameFromOcr, seriesNameFromOcr, printNumFromOcr, print_val))
+            cardList.append((charNameFromOcr, seriesNameFromOcr, printNumFromOcr, print_val, print_rating))
         logging.debug(f"Cardlist: {cardList}")
 
         # Query for the series/char.
         results = []
         
-        for cardPos, (cardChar, cardSeries, cardPrint, print_val) in enumerate(cardList):
+        for cardPos, (cardChar, cardSeries, cardPrint, print_val, printrating) in enumerate(cardList):
             found, matchedSeries, matchedChar, wishlistCount = findBestMatch(cardSeries, cardChar, self.seriesDB, self.characterDB)
             
             wishlist_val = 0
+            wl_rating = 0
             if wishlistCount > 5000:
                 wishlist_val = 10
-                rating = max(rating, 10)
+                wl_rating = 10
                 logging.info(f"Wow crazy WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount > 1000:
                 wishlist_val = 9
-                rating = max(rating, 6)
+                wl_rating = 7
                 logging.info(f"Wow high WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount > 500:
                 wishlist_val = 8
-                rating = max(rating, 5)
+                wl_rating = 6
                 logging.info(f"medium WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount > 100:
                 wishlist_val = 7
-                rating = max(rating, 5)
+                wl_rating = 5
                 logging.info(f"small WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount > 30:
                 wishlist_val = 7
-                rating = max(rating, 4)
+                wl_rating = 4
                 logging.info(f"tiny WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount >= 10:
                 wishlist_val = 3
-                rating = max(rating, 2)
+                wl_rating = 2
                 logging.info(f"mini WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
             elif wishlistCount > 5:
                 wishlist_val = 2
-                rating = max(rating, 1)
+                wl_rating = 1
             elif wishlistCount > 0:
                 wishlist_val = 1
             
-            results.append((wishlist_val, wishlistCount))
+            results.append((wishlist_val, wishlistCount, wl_rating))
         logging.debug(f"Results: {results}")
 
         decision = []
@@ -638,8 +638,10 @@ class MyClient(discord.Client):
                 "series": card[1],
                 "printcount": card[2],
                 "print": card[3],
+                "printrating": card[4],
                 "wl": wishlist[0],
-                "wlcount": wishlist[1]
+                "wlcount": wishlist[1],
+                "wlrating": wishlist[2],
             })
 
 
@@ -648,31 +650,45 @@ class MyClient(discord.Client):
             for dec in decision])}")
         best_card = decision[0]
         best_idx = 0
+        best_rating = 0
         for idx, card in enumerate(decision):
-            if card["wl"] > best_card["wl"]:
+            
+            rating = max(card["wlrating"],card["printrating"])
+
+            if rating > best_rating:
                 best_card = card
                 best_idx = idx
-            if card["wl"] == best_card["wl"]:
-                if card["print"] > best_card["print"]:
-                    best_card = card
-                    best_idx = idx
+                best_rating = rating
+            else:
 
-            if card["wl"] == best_card["wl"] and card["print"] == best_card["print"]:
-                if card["wlcount"] > best_card["wlcount"]:
+                if card["wl"] > best_card["wl"]:
                     best_card = card
                     best_idx = idx
-                if card["wlcount"] == best_card["wlcount"]:
-                    if card["printcount"] < best_card["printcount"]:
+                    best_rating = rating
+                if card["wl"] == best_card["wl"]:
+                    if card["print"] > best_card["print"]:
                         best_card = card
                         best_idx = idx
+                        best_rating = rating
+
+                if card["wl"] == best_card["wl"] and card["print"] == best_card["print"]:
+                    if card["wlcount"] > best_card["wlcount"]:
+                        best_card = card
+                        best_idx = idx
+                        best_rating = rating
+                    if card["wlcount"] == best_card["wlcount"]:
+                        if card["printcount"] < best_card["printcount"]:
+                            best_card = card
+                            best_idx = idx
+                            best_rating = rating
 
         
-        logging.info(f"Best card is idx {best_idx} with rating {rating}")
+        logging.info(f"Best card is idx {best_idx} with rating {best_rating}")
 
         end = time.time()
         logging.info(f"Took {end-start} time to get best index")
 
-        return best_idx, rating
+        return best_idx, best_rating
 
 
     

@@ -296,21 +296,20 @@ class MyClient(discord.Client):
                 logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!YOU FOUGHT AND WON!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
             if self.evasion:
-                logging.info("No cd, evasion used")
+                logging.info("evasion used")
                 self.evasion = False
-                self.grab = False
-            else:
-                self.grab = False
-                self.grab_cd = add_grab_cd()
-                logging.info(f"Grab cd set to {self.grab_cd}")
-                logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
+
+            self.grab = False
+            self.grab_cd = add_grab_cd()
+            logging.info(f"Grab cd set to {self.grab_cd}")
+            logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
 
     def check_for_evasion(self, message_uuid, message_content ):
         # Evasion
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Evasion** blessing has activated" in message_content:
             logging.info("Evasion activated")
             self.grab = True
-            self.grab_cd = 0
+            self.grab_cd = random.uniform(2, 10)
             self.evasion = True
 
     def check_for_cooldown_warning(self, message_uuid, message_content):

@@ -110,8 +110,8 @@ class MyClient(discord.Client):
 
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
+        logging.info(f"-----------------------Dropping in channel {selected_channel}-----------------------")
         await channel.send("kd")
-        logging.info(f"Dropping in channel {selected_channel}")
         self.dropped_cards_awaiting_pickup = True
 
     async def add_short_delay(self):
@@ -173,6 +173,7 @@ class MyClient(discord.Client):
                         logging.info("Checking cooldowns")
                         async with dm.typing():
                             await asyncio.sleep(random.uniform(0.2, 1))
+                        logging.info(f"-----------------------Sending in channel DM-----------------------")
                         await dm.send("kcd")
                         await asyncio.sleep(random.uniform(2, 5))
 
@@ -297,6 +298,7 @@ class MyClient(discord.Client):
             if self.evasion:
                 logging.info("No cd, evasion used")
                 self.evasion = False
+                self.grab = False
             else:
                 self.grab = False
                 self.grab_cd = add_grab_cd()
@@ -389,7 +391,7 @@ class MyClient(discord.Client):
         await new_button.click()
         logging.info(f"-----------------------CLICK BUTTON in {message.channel.id}-----------------------------------")
         self.grab = False
-        self.grab_cd = add_grab_cd()
+        self.grab_cd = 64 + random.uniform(5, 20)
         logging.info(f"Grab cd set to {self.grab_cd}")
         await asyncio.sleep(random.uniform(0.3, 0.6))
 

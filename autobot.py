@@ -66,7 +66,7 @@ DM_CHANNEL = data["dm_channel"]
 DROP_CHANNELS = data["drop_channels"]
 FOLLOW_CHANNELS = data["follow_channels"]
 
-MAX_FRUITS = 3
+MAX_FRUITS = 4
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
@@ -356,7 +356,7 @@ class MyClient(discord.Client):
             else:
                 logging.info("skipping fruit")
 
-    async def check_fruit_in_public_message(self, message, waited_for_edit, check_for_message_button_edit):
+    async def check_fruit_in_public_message(self, message: discord.Message, waited_for_edit, check_for_message_button_edit):
         if message.components[0].children[-1].emoji.name == "🍉":
             logging.info("fruit detected - public drop")
 
@@ -368,6 +368,9 @@ class MyClient(discord.Client):
                 waited_for_edit = True
 
             random_get_fruit = random.choice([True,True,True,False])
+            if message.channel.id in [1251358963581063208, 1249793110012067880]:
+                random_get_fruit = True
+
             if random_get_fruit:
                 if self.fruits < MAX_FRUITS:
                     click_delay = random.uniform(0.55, 1.5)
@@ -418,10 +421,12 @@ class MyClient(discord.Client):
                     if rating > 1:
                         click_delay = random.uniform(0.8, 2)
                         logging.info(f"Rating decent {click_delay}")
-
-                        if rating == 4:
+                        if rating >= 2:
                             logging.info(f"Clicking fast {click_delay}")
-                            click_delay = random.uniform(0.1, 0.2)
+                            click_delay = random.uniform(0.4, 0.8)
+                        if rating >= 4:
+                            logging.info(f"Clicking fastest {click_delay}")
+                            click_delay = random.uniform(0.2, 0.3)
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
                         # Get fruits after
@@ -435,8 +440,8 @@ class MyClient(discord.Client):
 
                     if rating >= 2:
                         click_delay = random.uniform(0.3, 1)
-                        if rating == 4:
-                            click_delay = random.uniform(0.1, 0.2)
+                        if rating >= 4:
+                            click_delay = random.uniform(0.2, 0.3)
                             logging.info(f"Clicking fast {click_delay}")
                         else:
                             click_delay = random.uniform(0.3, 1)
@@ -488,9 +493,13 @@ class MyClient(discord.Client):
                             logging.error(f"OCR machine broke public {e}")
                             return
                         click_delay = random.uniform(0.55, 1.5)
-                        if rating == 4:
-                            click_delay = random.uniform(0.1, 0.2)
+                        
+                        if rating >= 2:
                             logging.info(f"Clicking fast {click_delay}")
+                            click_delay = random.uniform(0.4, 0.8)
+                        if rating >= 4:
+                            click_delay = random.uniform(0.2, 0.3)
+                            logging.info(f"Clicking fastest {click_delay}")
                     try:
                         await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                     except TimeoutError as e:

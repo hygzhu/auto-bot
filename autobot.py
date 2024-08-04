@@ -298,11 +298,11 @@ class MyClient(discord.Client):
             if self.evasion:
                 logging.info("evasion used")
                 self.evasion = False
-
-            self.grab = False
-            self.grab_cd = add_grab_cd()
-            logging.info(f"Grab cd set to {self.grab_cd}")
-            logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
+            else:
+                self.grab = False
+                self.grab_cd = add_grab_cd()
+                logging.info(f"Grab cd set to {self.grab_cd}")
+                logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
 
     def check_for_evasion(self, message_uuid, message_content ):
         # Evasion
@@ -407,6 +407,7 @@ class MyClient(discord.Client):
                     best_index, rating = await self.get_best_card_index(message)
                 except Exception as e:
                     logging.error(f"OCR machine broke personal {e}")
+                    return
                 try:
                     await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                 except TimeoutError as e:
@@ -424,7 +425,7 @@ class MyClient(discord.Client):
                         if rating >= 2:
                             logging.info(f"Clicking fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
-                        if rating >= 4:
+                        if rating >= 5:
                             logging.info(f"Clicking fastest {click_delay}")
                             click_delay = random.uniform(0.2, 0.3)
                         await self.click_card_button(message, best_index, click_delay)
@@ -497,7 +498,7 @@ class MyClient(discord.Client):
                         if rating >= 2:
                             logging.info(f"Clicking fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
-                        if rating >= 4:
+                        if rating >= 5:
                             click_delay = random.uniform(0.2, 0.3)
                             logging.info(f"Clicking fastest {click_delay}")
                     try:
@@ -506,7 +507,7 @@ class MyClient(discord.Client):
                         logging.error(f"Wait for timed out {e}")
                     waited_for_edit = True
                     logging.info("Lets try to grab - drop is on cd")
-                    if rating < 2:
+                    if rating < 3:
                         logging.info("Rating too low, skipping")
                     else:
                         logging.info("Rating good, lets grab")

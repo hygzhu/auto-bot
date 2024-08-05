@@ -298,7 +298,7 @@ class MyClient(discord.Client):
             if self.evasion:
                 logging.info("evasion used")
                 self.evasion = False
-                
+
             self.grab = False
             self.grab_cd = add_grab_cd()
             logging.info(f"Grab cd set to {self.grab_cd}")
@@ -403,11 +403,11 @@ class MyClient(discord.Client):
             components = message.components
             if len(components) > 0:
                 logging.info("-----------------------Personal drop-----------------------")
+                best_index = random.randint(0,2)
                 try:
                     best_index, rating = await self.get_best_card_index(message)
                 except Exception as e:
-                    logging.error(f"OCR machine broke personal {e}")
-                    return
+                    logging.error(f"OCR machine broke personal!!!!! {e}")
                 try:
                     await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                 except TimeoutError as e:
@@ -573,12 +573,22 @@ class MyClient(discord.Client):
         processedImgResultList = await preProcessImg(tempPath, dropsPath, ocrPath, cardnum)
         cardList = []
         for cardImageResult in processedImgResultList:
-            charNameFromOcr = ' '.join(reader.readtext(cardImageResult[0], detail=0))
-            seriesOriginal = ' '.join(reader.readtext(cardImageResult[1], detail=0))
-            seriesNameFromOcr = f"{seriesOriginal[:46]}..."
-            ogReadPrint = reader.readtext(cardImageResult[2], detail=0, allowlist ='0123456789.')[0]
-            printNumFromOcr = int(str.split(ogReadPrint,".")[0])
 
+            seriesNameFromOcr = "--------------------------------"
+            charNameFromOcr = "--------------------------------"
+            try:            
+                charNameFromOcr = ' '.join(reader.readtext(cardImageResult[0], detail=0))
+                seriesOriginal = ' '.join(reader.readtext(cardImageResult[1], detail=0))
+                seriesNameFromOcr = f"{seriesOriginal[:46]}..."
+            except Exception as e:
+                logging.error("Text OCR failure" + e)
+
+            printNumFromOcr = 100000000
+            try:
+                ogReadPrint = reader.readtext(cardImageResult[2], detail=0, allowlist ='0123456789.')[0]
+                printNumFromOcr = int(str.split(ogReadPrint,".")[0])
+            except Exception as e:
+                logging.error("print OCR failure" + e)
             print_rating = 0   
             print_val = -1
             if printNumFromOcr < 100:

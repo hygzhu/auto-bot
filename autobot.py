@@ -298,11 +298,11 @@ class MyClient(discord.Client):
             if self.evasion:
                 logging.info("evasion used")
                 self.evasion = False
-
-            self.grab = False
-            self.grab_cd = add_grab_cd()
-            logging.info(f"Grab cd set to {self.grab_cd}")
-            logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
+            else:
+                self.grab = False
+                self.grab_cd = add_grab_cd()
+                logging.info(f"Grab cd set to {self.grab_cd}")
+                logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
 
     def check_for_evasion(self, message_uuid, message_content ):
         # Evasion

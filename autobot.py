@@ -101,7 +101,7 @@ class MyClient(discord.Client):
         selected_channel = random.choice(new_channels)
 
         # TODO clan override
-        selected_channel = random.choice([1006000542578901052, 1006000542578901052, 1006000542578901052, selected_channel])
+        selected_channel = random.choice([1006000542578901052,1006000542578901052,1006000542578901052,1006000542578901052, 1006000542578901052, 1006000542578901052, selected_channel])
 
         self.last_dropped_channel = selected_channel
         channel = self.get_channel(selected_channel)
@@ -551,8 +551,8 @@ class MyClient(discord.Client):
 
         try: 
             self.check_fruit_grab(message_uuid, message_content)
-            self.check_for_card_grab(message_uuid, message_content)
             self.check_for_evasion(message_uuid, message_content)
+            self.check_for_card_grab(message_uuid, message_content)
             self.check_for_cooldown_warning(message_uuid, message_content)
             await self.check_personal_drop(message_uuid, message_content, message, check_for_message_button_edit)
             self.check_for_generosity(message_uuid, message_content)

@@ -367,7 +367,7 @@ class MyClient(discord.Client):
                     logging.error(f"Wait for timed out {e}")
                 waited_for_edit = True
 
-            random_get_fruit = random.choice([True,True,True,False])
+            random_get_fruit = random.choice([True,True,True,True,True,False])
             if message.channel.id in [1251358963581063208, 1249793110012067880]:
                 random_get_fruit = True
 
@@ -401,6 +401,7 @@ class MyClient(discord.Client):
         # Karuta message for personal drop
         if message_uuid == KARUTA_ID and str(USERID) in message_content:
             components = message.components
+            rating = 0
             if len(components) > 0:
                 logging.info("-----------------------Personal drop-----------------------")
                 best_index = random.randint(0,2)
@@ -475,7 +476,7 @@ class MyClient(discord.Client):
             return
         
         if message_uuid == KARUTA_ID and "since this server is currently active" in message.content:
-            logging.info("Got message from public drop")
+            logging.debug("Got message from public drop")
             if len(message.attachments) <= 0:
                 return
             components = message.components
@@ -589,6 +590,7 @@ class MyClient(discord.Client):
                 printNumFromOcr = int(str.split(ogReadPrint,".")[0])
             except Exception as e:
                 logging.error("print OCR failure" + e)
+
             print_rating = 0   
             print_val = -1
             if printNumFromOcr < 100:

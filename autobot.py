@@ -116,7 +116,7 @@ class MyClient(discord.Client):
 
     async def add_short_delay(self):
         short_delay = random.uniform(3, 8)
-        logging.info(f"Creating short delay of {short_delay}")
+        logging.debug(f"Creating short delay of {short_delay}")
         await asyncio.sleep(short_delay)
         
     async def on_ready(self):
@@ -506,7 +506,7 @@ class MyClient(discord.Client):
                     except TimeoutError as e:
                         logging.error(f"Wait for timed out {e}")
                     waited_for_edit = True
-                    logging.info("Lets try to grab - drop is on cd")
+                    logging.debug("Lets try to grab - drop is on cd")
                     if rating < 3:
                         logging.info("Rating too low, skipping")
                     else:
@@ -705,7 +705,7 @@ class MyClient(discord.Client):
         logging.info(f"Best card is idx {best_idx} with rating {best_rating}")
 
         end = time.time()
-        logging.info(f"Took {end-start} time to get best index")
+        logging.debug(f"Took {end-start} time to get best index")
 
         return best_idx, best_rating
 

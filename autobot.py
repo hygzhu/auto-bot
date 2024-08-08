@@ -127,26 +127,26 @@ class MyClient(discord.Client):
         # Auto drop
         while True:
 
-            logging.info(f"Polling  grab:{self.grab} drop:{self.drop}  grab cd:{self.grab_cd}")
+            logging.info(f"Polling  grab:{self.grab} drop:{self.drop}  grab cd:{self.grab_cd} fruits: {self.fruits}")
             await asyncio.sleep(random.uniform(5, 10))
             
             # Sleeping time
-            utc = pytz.utc
-            now = datetime.now(tz=utc)
-            eastern = pytz.timezone('US/Eastern')
-            loc_dt = now.astimezone(eastern)
-            hour = loc_dt.hour
-            while is_hour_between(1, 6, hour):
-                utc = pytz.utc
-                now = datetime.now(tz=utc)
-                eastern = pytz.timezone('US/Eastern')
-                loc_dt = now.astimezone(eastern)
-                hour = loc_dt.hour
-                sleep_time = random.uniform(100, 600)
-                logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
-                self.sleeping = True
-                await asyncio.sleep(sleep_time)
-            self.sleeping = False
+            # utc = pytz.utc
+            # now = datetime.now(tz=utc)
+            # eastern = pytz.timezone('US/Eastern')
+            # loc_dt = now.astimezone(eastern)
+            # hour = loc_dt.hour
+            # while is_hour_between(1, 6, hour):
+            #     utc = pytz.utc
+            #     now = datetime.now(tz=utc)
+            #     eastern = pytz.timezone('US/Eastern')
+            #     loc_dt = now.astimezone(eastern)
+            #     hour = loc_dt.hour
+            #     sleep_time = random.uniform(100, 600)
+            #     logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
+            #     self.sleeping = True
+            #     await asyncio.sleep(sleep_time)
+            # self.sleeping = False
 
             #take a break
             # break_time = False
@@ -184,7 +184,7 @@ class MyClient(discord.Client):
                         
                     
                 if self.grab_cd != 0:
-                    logging.info(f"Grab on cd {self.grab_cd}, waiting")
+                    logging.debug(f"Grab on cd {self.grab_cd}, waiting")
                     og_grab_cd = self.grab_cd
                     await asyncio.sleep(self.grab_cd)
                     # Using shared vars here - need lock
@@ -200,7 +200,7 @@ class MyClient(discord.Client):
 
                 else:
                     #just wait a few before looping
-                    logging.info(f"Wait a few before looping")
+                    logging.debug(f"Wait a few before looping")
                     await asyncio.sleep(random.uniform(2, 5))
 
             except Exception as e:
@@ -379,7 +379,7 @@ class MyClient(discord.Client):
                     await fruit_button.click()
                     logging.info(f"-----------------------PUBLIC FRUIT CLICK in {message.channel.id}-----------------------------------")
                     await asyncio.sleep(click_delay)
-                    logging.info("Tried to grab fruit")
+                    logging.debug("Tried to grab fruit")
                     await asyncio.sleep(random.uniform(0.3, 0.6))
                 else:
                     logging.info("skipping fruit, we at max")
@@ -516,7 +516,7 @@ class MyClient(discord.Client):
                 else:
                     logging.error(f"No components in drop message, {message}")
             else:
-                logging.info(f"Cannot grab, on cd")
+                logging.debug(f"Cannot grab, on cd")
 
             if len(components) > 0:
                 # Get fruits

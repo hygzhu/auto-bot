@@ -238,12 +238,16 @@ def extractNumCardsFromMessage(message):
     withoutUser = str.split(message,"> ")
     latterHalf = withoutUser[len(withoutUser)-1]
     number = ""
-    if len(latterHalf) > 30:
-        # This is a server drop
-        number = latterHalf[13]
-    else:
-        # This is a user's drop
-        number = latterHalf[12]
+    try:
+        if len(latterHalf) > 30:
+            # This is a server drop
+            number = latterHalf[13]
+        else:
+            # This is a user's drop
+            number = latterHalf[12]
+    except Exception as e:
+        logging.error("Extract cards from message error, default to 3, :"+ e )
+        number = 3
     return int(number)
 
 def heartEmoji(wishlistcount):
@@ -280,15 +284,17 @@ async def preProcessImg(saveFolderPath, imagePath, ocrPath, cardnum) -> list[tup
 
     cardPathList = []
     for a in range(cardnum):
-        cardPath = os.path.join(saveFolderPath, f"card{a+1}.png")
-        cardTopPath = os.path.join(topPath, f"top{a+1}.png")
-        await get_top(cardPath, cardTopPath)
-        cardBotPath = os.path.join(botPath, f"bot{a+1}.png")
-        await get_bottom(cardPath, cardBotPath)
-        cardPrintPath = os.path.join(printPath, f"print{a+1}.png")
-        await get_print(cardPath, cardPrintPath)
-        cardPathList.append((cardTopPath, cardBotPath, cardPrintPath))
-        
+        try:
+            cardPath = os.path.join(saveFolderPath, f"card{a+1}.png")
+            cardTopPath = os.path.join(topPath, f"top{a+1}.png")
+            await get_top(cardPath, cardTopPath)
+            cardBotPath = os.path.join(botPath, f"bot{a+1}.png")
+            await get_bottom(cardPath, cardBotPath)
+            cardPrintPath = os.path.join(printPath, f"print{a+1}.png")
+            await get_print(cardPath, cardPrintPath)
+            cardPathList.append((cardTopPath, cardBotPath, cardPrintPath))
+        except:
+            logging.error("Failed to get card path stuff")
     return cardPathList
 
 # Finds the best match by series first, then character with >1 wishlists

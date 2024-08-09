@@ -574,6 +574,7 @@ class MyClient(discord.Client):
         ocrPath = os.path.join(tempPath, "ocr")
         processedImgResultList = await preProcessImg(tempPath, dropsPath, ocrPath, cardnum)
         cardList = []
+        
         for cardImageResult in processedImgResultList:
 
             seriesNameFromOcr = "--------------------------------"

@@ -8,7 +8,7 @@ import time
 import shutil
 import easyocr
 import requests
-
+import traceback
 from util import *
 from os import listdir
 from os.path import isfile, join
@@ -131,22 +131,22 @@ class MyClient(discord.Client):
             await asyncio.sleep(random.uniform(5, 10))
             
             # Sleeping time
-            # utc = pytz.utc
-            # now = datetime.now(tz=utc)
-            # eastern = pytz.timezone('US/Eastern')
-            # loc_dt = now.astimezone(eastern)
-            # hour = loc_dt.hour
-            # while is_hour_between(1, 6, hour):
-            #     utc = pytz.utc
-            #     now = datetime.now(tz=utc)
-            #     eastern = pytz.timezone('US/Eastern')
-            #     loc_dt = now.astimezone(eastern)
-            #     hour = loc_dt.hour
-            #     sleep_time = random.uniform(100, 600)
-            #     logging.info(f"Hour is {hour} Sleeping for  {sleep_time}")
-            #     self.sleeping = True
-            #     await asyncio.sleep(sleep_time)
-            # self.sleeping = False
+            utc = pytz.utc
+            now = datetime.now(tz=utc)
+            eastern = pytz.timezone('US/Eastern')
+            loc_dt = now.astimezone(eastern)
+            hour = loc_dt.hour
+            while is_hour_between(1, 6, hour):
+                utc = pytz.utc
+                now = datetime.now(tz=utc)
+                eastern = pytz.timezone('US/Eastern')
+                loc_dt = now.astimezone(eastern)
+                hour = loc_dt.hour
+                sleep_time = random.uniform(5, 10)
+                logging.info(f"Hour is {hour} Sleeping for {sleep_time}")
+                self.sleeping = True
+                await asyncio.sleep(sleep_time)
+            self.sleeping = False
 
             #take a break
             # break_time = False
@@ -286,6 +286,11 @@ class MyClient(discord.Client):
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you gathered a fruit piece" in message_content:
             self.fruits += 1
             logging.info(f"got a fruit {self.fruits}")
+        
+        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you have too many unused" in message_content:
+            self.fruits = 10000000
+            logging.info(f"FRUIT WARNING DO NOT GET MORE FRUITS")
+        
 
     def check_for_card_grab(self, message_uuid, message_content):
         #took a card - grab goes on cd
@@ -410,6 +415,7 @@ class MyClient(discord.Client):
                     best_index, rating = await self.get_best_card_index(message)
                 except Exception as e:
                     logging.error(f"OCR machine broke personal!!!!! {e}")
+                    logging.error(traceback.format_exc())
                 try:
                     await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                 except TimeoutError as e:
@@ -494,6 +500,7 @@ class MyClient(discord.Client):
                             best_index, rating = await self.get_best_card_index(message)
                         except Exception as e:
                             logging.error(f"OCR machine broke public {e}")
+                            logging.error(traceback.format_exc())
                             return
                         click_delay = random.uniform(0.55, 1.5)
                         
@@ -565,15 +572,20 @@ class MyClient(discord.Client):
     async def get_best_card_index(self, message):
         start = time.time()
 
-        cardnum = extractNumCardsFromMessage(message.content)
-        tempPath = f"temp/{message.id}"
-        os.makedirs(tempPath, exist_ok = True)
-        dropsPath = os.path.join(tempPath, "drops.webp")
-        with open(dropsPath, "wb") as file:
-            file.write(requests.get(message.attachments[0].url).content)
-        ocrPath = os.path.join(tempPath, "ocr")
-        processedImgResultList = await preProcessImg(tempPath, dropsPath, ocrPath, cardnum)
-        cardList = []
+        try:
+            attachements_url = ""
+            cardnum = extractNumCardsFromMessage(message.content)
+            tempPath = f"temp/{message.id}"
+            os.makedirs(tempPath, exist_ok = True)
+            dropsPath = os.path.join(tempPath, "drops.webp")
+            with open(dropsPath, "wb") as file:
+                attachements_url = message.attachments[0].url
+                file.write(requests.get(attachements_url).content)
+            ocrPath = os.path.join(tempPath, "ocr")
+            processedImgResultList = await preProcessImg(tempPath, dropsPath, ocrPath, cardnum)
+            cardList = []
+        except Exception as e:
+            logging.error(f"Something went wrong in processing, {e}, {attachements_url}")
         
         for cardImageResult in processedImgResultList:
 

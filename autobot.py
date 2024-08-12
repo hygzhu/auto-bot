@@ -118,6 +118,15 @@ class MyClient(discord.Client):
         short_delay = random.uniform(3, 8)
         logging.debug(f"Creating short delay of {short_delay}")
         await asyncio.sleep(short_delay)
+
+    async def check_cooldowns(self, dm):
+        logging.info("Checking cooldowns")
+        async with dm.typing():
+            await asyncio.sleep(random.uniform(0.2, 1))
+        logging.info(f"-----------------------Sending in channel DM-----------------------")
+        await dm.send("kcd")
+        await asyncio.sleep(random.uniform(2, 5))
+
         
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
@@ -136,13 +145,13 @@ class MyClient(discord.Client):
             eastern = pytz.timezone('US/Eastern')
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
-            while is_hour_between(1, 6, hour):
+            while is_hour_between(1, 5, hour):
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
                 eastern = pytz.timezone('US/Eastern')
                 loc_dt = now.astimezone(eastern)
                 hour = loc_dt.hour
-                sleep_time = random.uniform(5, 10)
+                sleep_time = random.uniform(600, 1200)
                 logging.info(f"Hour is {hour} Sleeping for {sleep_time}")
                 self.sleeping = True
                 await asyncio.sleep(sleep_time)
@@ -169,13 +178,7 @@ class MyClient(discord.Client):
                 async with self.lock:
 
                     if not self.grab and self.grab_cd == 0:
-                        
-                        logging.info("Checking cooldowns")
-                        async with dm.typing():
-                            await asyncio.sleep(random.uniform(0.2, 1))
-                        logging.info(f"-----------------------Sending in channel DM-----------------------")
-                        await dm.send("kcd")
-                        await asyncio.sleep(random.uniform(2, 5))
+                        await self.check_cooldowns(dm)
 
                     if DROP_STATUS:
                         if self.grab and self.drop:
@@ -186,7 +189,15 @@ class MyClient(discord.Client):
                 if self.grab_cd != 0:
                     logging.debug(f"Grab on cd {self.grab_cd}, waiting")
                     og_grab_cd = self.grab_cd
-                    await asyncio.sleep(self.grab_cd)
+                    # random chance for kcd
+                    if random.randint(0,5) == 3:
+                        grab_cd = self.grab_cd
+                        await asyncio.sleep(grab_cd)
+                        await self.check_cooldowns(dm)
+                        await asyncio.sleep(grab_cd)
+                    else:
+                        await asyncio.sleep(self.grab_cd)
+
                     # Using shared vars here - need lock
                     async with self.lock:
                         if self.grab_cd == og_grab_cd:
@@ -215,7 +226,7 @@ class MyClient(discord.Client):
         if message.author.id != KARUTA_ID:
             return
         if self.sleeping:
-            logging.debug("I'm sleeping!")
+            logging.info("I'm sleeping!")
             return
 
         async with self.lock:

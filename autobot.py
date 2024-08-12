@@ -155,6 +155,8 @@ class MyClient(discord.Client):
                 logging.info(f"Hour is {hour} Sleeping for {sleep_time}")
                 self.sleeping = True
                 await asyncio.sleep(sleep_time)
+            if self.sleeping:
+                await self.check_cooldowns(dm)
             self.sleeping = False
 
             #take a break
@@ -189,14 +191,15 @@ class MyClient(discord.Client):
                 if self.grab_cd != 0:
                     logging.debug(f"Grab on cd {self.grab_cd}, waiting")
                     og_grab_cd = self.grab_cd
-                    # random chance for kcd
-                    if random.randint(0,5) == 3:
-                        grab_cd = self.grab_cd
-                        await asyncio.sleep(grab_cd)
-                        await self.check_cooldowns(dm)
-                        await asyncio.sleep(grab_cd)
-                    else:
-                        await asyncio.sleep(self.grab_cd)
+                    # # random chance for kcd
+                    # if random.randint(0,100) == 42:
+                    #     grab_cd = self.grab_cd
+                    #     await asyncio.sleep(grab_cd)
+                    #     await self.check_cooldowns(dm)
+                    #     await asyncio.sleep(grab_cd)
+                    # else:
+                    #     await asyncio.sleep(self.grab_cd)
+                    await asyncio.sleep(self.grab_cd)
 
                     # Using shared vars here - need lock
                     async with self.lock:

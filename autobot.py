@@ -156,6 +156,9 @@ class MyClient(discord.Client):
                 self.sleeping = True
                 await asyncio.sleep(sleep_time)
             if self.sleeping:
+                self.sleeping = False
+                self.drop = True
+                self.grab = True
                 await self.check_cooldowns(dm)
             self.sleeping = False
 
@@ -387,7 +390,7 @@ class MyClient(discord.Client):
                     logging.error(f"Wait for timed out {e}")
                 waited_for_edit = True
 
-            random_get_fruit = random.choice([True,True,True,True,True,False])
+            random_get_fruit = random.choice([True,True,True,True,True,False,True,True,True,True,True])
             if message.channel.id in [1251358963581063208, 1249793110012067880]:
                 random_get_fruit = True
 
@@ -610,14 +613,14 @@ class MyClient(discord.Client):
                 seriesOriginal = ' '.join(reader.readtext(cardImageResult[1], detail=0))
                 seriesNameFromOcr = f"{seriesOriginal[:46]}..."
             except Exception as e:
-                logging.error("Text OCR failure" + e)
+                logging.error("Text OCR failure")
 
             printNumFromOcr = 100000000
             try:
                 ogReadPrint = reader.readtext(cardImageResult[2], detail=0, allowlist ='0123456789.')[0]
                 printNumFromOcr = int(str.split(ogReadPrint,".")[0])
             except Exception as e:
-                logging.error("print OCR failure" + e)
+                logging.error("print OCR failure")
 
             print_rating = 0   
             print_val = -1

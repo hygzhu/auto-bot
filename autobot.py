@@ -195,12 +195,12 @@ class MyClient(discord.Client):
                     logging.debug(f"Grab on cd {self.grab_cd}, waiting")
                     og_grab_cd = self.grab_cd
                     # # random chance for kcd
-                    if random.randint(0,5) == 5:
+                    if random.randint(0,5) == 10:
                         logging.info(f"Will check cd randomly")
                         grab_cd = self.grab_cd
-                        await asyncio.sleep(grab_cd)
+                        await asyncio.sleep(grab_cd/2)
                         await self.check_cooldowns(dm)
-                        await asyncio.sleep(grab_cd)
+                        await asyncio.sleep(grab_cd/2)
                     else:
                         await asyncio.sleep(self.grab_cd)
                     # await asyncio.sleep(self.grab_cd)

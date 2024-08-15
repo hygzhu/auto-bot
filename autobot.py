@@ -434,6 +434,11 @@ class MyClient(discord.Client):
                 except Exception as e:
                     logging.error(f"OCR machine broke personal!!!!! {e}")
                     logging.error(traceback.format_exc())
+
+                if best_index == -1:
+                    logging.error(f"Could not process image for message: {message_content}")
+                    return
+
                 try:
                     await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                 except TimeoutError as e:
@@ -521,6 +526,10 @@ class MyClient(discord.Client):
                             logging.error(traceback.format_exc())
                             return
                         click_delay = random.uniform(0.55, 1.5)
+
+                        if best_index == -1:
+                            logging.error(f"Could not process image for message: {message_content}")
+                            return
                         
                         if rating >= 2:
                             logging.info(f"Clicking fast {click_delay}")
@@ -590,6 +599,7 @@ class MyClient(discord.Client):
     async def get_best_card_index(self, message):
         start = time.time()
 
+        processedImgResultList = []
         try:
             attachements_url = ""
             cardnum = extractNumCardsFromMessage(message.content)
@@ -605,6 +615,9 @@ class MyClient(discord.Client):
         except Exception as e:
             logging.error(f"Something went wrong in processing, {e}, {attachements_url}")
         
+        if len(processedImgResultList) == 0:
+            return -1
+
         for cardImageResult in processedImgResultList:
 
             seriesNameFromOcr = "--------------------------------"

@@ -436,8 +436,8 @@ class MyClient(discord.Client):
                     logging.error(traceback.format_exc())
 
                 if best_index == -1:
-                    logging.error(f"Could not process image for message: {message_content}")
-                    return
+                    logging.error(f"Could not process image for message: {message_content}, selecting random index")
+                    best_index = random.randint(0,2)
 
                 try:
                     await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
@@ -490,7 +490,7 @@ class MyClient(discord.Client):
                             click_delay = random.uniform(4, 10)
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
-        
+            self.dropped_cards_awaiting_pickup = False
             await self.add_short_delay()
 
 

@@ -86,7 +86,7 @@ class MyClient(discord.Client):
         self.unpopCharacterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE wishlistcount < 2 ORDER BY wishlistcount desc, series asc, character asc")
         self.fruits = 0
         self.sleeping = False
-        self.evasion = False
+        self.evasion = 0
         self.generosity = False
         self.lock = asyncio.Lock()
         self.last_dropped_channel = random.choice(DROP_CHANNELS)
@@ -320,7 +320,7 @@ class MyClient(discord.Client):
 
             if self.evasion:
                 logging.info("evasion used")
-                self.evasion = False
+                self.evasion -= 1
             else:
                 self.grab = False
                 self.grab_cd = add_grab_cd()
@@ -334,7 +334,7 @@ class MyClient(discord.Client):
             logging.info("Evasion activated")
             self.grab = True
             self.grab_cd = random.uniform(2, 10)
-            self.evasion = True
+            self.evasion += 1
 
     def check_for_cooldown_warning(self, message_uuid, message_content):
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you must wait" in message_content:
@@ -423,7 +423,7 @@ class MyClient(discord.Client):
 
     async def check_personal_drop(self, message_uuid, message_content, message, check_for_message_button_edit):
         # Karuta message for personal drop
-        if message_uuid == KARUTA_ID and str(USERID) in message_content:
+        if message_uuid == KARUTA_ID and str(USERID) in message_content and f"<@{str(USERID)}> is dropping" in message_content:
             components = message.components
             rating = 0
             if len(components) > 0:

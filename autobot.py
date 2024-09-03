@@ -100,8 +100,8 @@ class MyClient(discord.Client):
         new_channels = list(set(DROP_CHANNELS) - set([self.last_dropped_channel]))
         selected_channel = random.choice(new_channels)
 
-        # TODO clan override
-        selected_channel = random.choice([1006000542578901052,1006000542578901052,1006000542578901052,1006000542578901052, 1006000542578901052, 1006000542578901052, selected_channel])
+        # TODO clan + public override
+        selected_channel = random.choice([1006000542578901052, selected_channel] + ([1006000542578901052]*4)+ ([715844053274722317]))
 
         self.last_dropped_channel = selected_channel
         channel = self.get_channel(selected_channel)
@@ -145,7 +145,9 @@ class MyClient(discord.Client):
             eastern = pytz.timezone('US/Eastern')
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
-            while is_hour_between(1, 5, hour):
+
+            hour_offset = random.choice([1,0])
+            while is_hour_between(1-hour_offset, 6+hour_offset, hour):
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
                 eastern = pytz.timezone('US/Eastern')
@@ -159,7 +161,7 @@ class MyClient(discord.Client):
                 self.sleeping = False
                 self.drop = True
                 self.grab = True
-                await self.check_cooldowns(dm)
+                #await self.check_cooldowns(dm)
             self.sleeping = False
 
             #take a break

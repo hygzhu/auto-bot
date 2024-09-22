@@ -101,7 +101,7 @@ class MyClient(discord.Client):
         selected_channel = random.choice(new_channels)
 
         # TODO clan + public override
-        selected_channel = random.choice([1006000542578901052, selected_channel] + ([1006000542578901052]*4)+ ([715844053274722317]))
+        selected_channel = random.choice([1006000542578901052, selected_channel] + ([1006000542578901052]*4))
 
         self.last_dropped_channel = selected_channel
         channel = self.get_channel(selected_channel)
@@ -146,8 +146,15 @@ class MyClient(discord.Client):
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
 
-            hour_offset = random.choice([1,0])
-            while is_hour_between(1-hour_offset, 6+hour_offset, hour):
+            start_hour = random.choice([1,2])
+            end_hour = random.choice([5,6])
+            while is_hour_between(start_hour, end_hour, hour):
+                logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
+                utc = pytz.utc
+                now = datetime.now(tz=utc)
+                eastern = pytz.timezone('US/Eastern')
+                loc_dt = now.astimezone(eastern)
+                
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
                 eastern = pytz.timezone('US/Eastern')

@@ -10,3 +10,5 @@ nohup.out
 output.log*
 config*
 old_output*
+*.json
+output.*

@@ -21,18 +21,11 @@ import pytz
 import argparse
 import time
 
+
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
-parser.add_argument("-drop", help="Enable drop",  action='store_true')
-parser.add_argument("-ocr", help="Enable ocr on public drop",  action='store_true')
 args = parser.parse_args()
-
-logging.info(f"Parser args config:{args.c} drop:{args.drop} enableocr: {args.ocr}")
-
 log_file = args.c.split(".")[0]
-
-def timetz(*args):
-    return datetime.now(tz).timetuple()
 
 tz = pytz.timezone('US/Eastern') # UTC, Asia/Shanghai, Europe/Berlin
 
@@ -47,40 +40,54 @@ logging.basicConfig(
 
 logging.Formatter.converter = lambda *args: datetime.now(tz).timetuple()
 
+logging.info(f"Parser args config:{args.c}")
+
+
+
 karuta_name = "Karuta"
 KARUTA_ID = 646937666251915264
-
 SECONDS_FOR_GRAB = 312*2
 SECONDS_FOR_DROP = 1816
 
 
-ENABLE_OCR = args.ocr
-DROP_STATUS = args.drop
-
-f = open(args.c)
-data = json.load(f)
-logging.info(f"Loaded config {data}")
-
-TOKEN = data["token"]
-AUTHOR_NAME = data["name"]
-USERID = data["id"]
-DM_CHANNEL = data["dm_channel"]
-DROP_CHANNELS = data["drop_channels"]
-FOLLOW_CHANNELS = data["follow_channels"]
-CLICK_PUBLIC_DROP = data["click_public_drop"]
-
 MAX_FRUITS = 4
-
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
 path_to_ocr = "temp"
+
+from openai import OpenAI
+
+
+
+def send_chat_gpt(api_key, prompt):
+
+    client = OpenAI(
+        # This is the default and can be omitted
+        api_key=api_key,
+    )
+
+    chat_completion = client.chat.completions.create(
+        messages=[
+        {"role": "system", "content": "You are a girl who like anime and video games"},
+        {"role": "user", "content": prompt}
+        ],
+        model="gpt-4",
+    )
+    # Print the response
+    return chat_completion.choices[0].message.content
 
 def add_grab_cd():
     return SECONDS_FOR_GRAB + random.uniform(0.55, 60)
 
 class MyClient(discord.Client):
-    def __init__(self, **kwargs):
+    def __init__(self, user_id, dm_channel, drop_channels, follow_channels, click_public_drop,gpt_api_key, **kwargs):
         super().__init__(**kwargs)
+        self.user_id = user_id
+        self.dm_channel = dm_channel
+        self.drop_channels = drop_channels
+        self.follow_channels = follow_channels
+        self.click_public_drop = click_public_drop
+        self.gpt_api_key = gpt_api_key
         self.grab = False
         self.drop = False
         self.grab_cd = 0
@@ -92,7 +99,7 @@ class MyClient(discord.Client):
         self.evasion = 0
         self.generosity = False
         self.lock = asyncio.Lock()
-        self.last_dropped_channel = random.choice(DROP_CHANNELS)
+        self.last_dropped_channel = random.choice(self.drop_channels)
         self.last_hour = 0
         self.dropped_cards_awaiting_pickup = False
 
@@ -100,7 +107,7 @@ class MyClient(discord.Client):
 
         self.drop = False
 
-        selected_channel = DROP_CHANNELS[0]
+        selected_channel = self.drop_channels[0]
 
         self.last_dropped_channel = selected_channel
         channel = self.get_channel(selected_channel)
@@ -121,7 +128,7 @@ class MyClient(discord.Client):
     async def check_cooldowns(self):
         logging.info("Checking cooldowns")
 
-        selected_channel = DROP_CHANNELS[0]
+        selected_channel = self.drop_channels[0]
         channel = self.get_channel(selected_channel)
 
         async with channel.typing():
@@ -130,34 +137,37 @@ class MyClient(discord.Client):
         await channel.send("kcd")
         await asyncio.sleep(random.uniform(2, 5))
 
+    async def send_random_message(self):
+        selected_channel = self.drop_channels[0]
+        channel = self.get_channel(selected_channel)
+        async with channel.typing():
+            await asyncio.sleep(random.uniform(3, 5))
+        await channel.send(send_chat_gpt(self.gpt_api_key, "mention something that happened in your day, with only a few words and with no punctuation or capitalizations, in madarin chinese hanzi"))
+        await asyncio.sleep(random.uniform(2, 5))
         
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
-        # Dm setup
-        dm = await self.get_user(KARUTA_ID).create_dm()
-
         # Auto drop
         while True:
 
+            if random.randint(1,600) == 30:
+                logging.info(f"seinding random message")
+            
+                # Should send message once every 60 min
+                await self.send_random_message()
+
             logging.info(f"Polling  grab:{self.grab} drop:{self.drop}  grab cd:{self.grab_cd} fruits: {self.fruits}")
             await asyncio.sleep(random.uniform(5, 10))
-            
             # Sleeping time
             utc = pytz.utc
             now = datetime.now(tz=utc)
             eastern = pytz.timezone('US/Eastern')
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
-
             start_hour = random.choice([2,3])
             end_hour = random.choice([5,6])
             while is_hour_between(start_hour, end_hour, hour):
                 logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
-                utc = pytz.utc
-                now = datetime.now(tz=utc)
-                eastern = pytz.timezone('US/Eastern')
-                loc_dt = now.astimezone(eastern)
-                
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
                 eastern = pytz.timezone('US/Eastern')
@@ -171,23 +181,7 @@ class MyClient(discord.Client):
                 self.sleeping = False
                 self.drop = True
                 self.grab = True
-                #await self.check_cooldowns(dm)
             self.sleeping = False
-
-            #take a break
-            # break_time = False
-            # if hour != self.last_hour:
-            #     break_time = random.randint(1,3) == 1
-            # if break_time:
-            #     logging.info("Time for a break!!")
-            #     sleep_time = random.uniform(500, 900)
-            #     logging.info(f"break for  {sleep_time}")          
-            #     self.sleeping = True
-            #     await asyncio.sleep(sleep_time)
-            #     self.sleeping = False
-            # else:
-            #     logging.info("No breaks!!")
-            # self.last_hour = hour
 
             # Do something
             try: 
@@ -196,11 +190,9 @@ class MyClient(discord.Client):
 
                     if not self.grab and self.grab_cd == 0:
                         await self.check_cooldowns()
-
-                    if DROP_STATUS:
-                        if self.grab and self.drop:
-                            logging.info(f"Try to drop")
-                            await self.drop_card()
+                    if self.grab and self.drop:
+                        logging.info(f"Try to drop")
+                        await self.drop_card()
                         
                     
                 if self.grab_cd != 0:
@@ -231,7 +223,7 @@ class MyClient(discord.Client):
                 else:
                     #just wait a few before looping
                     logging.debug(f"Wait a few before looping")
-                    await asyncio.sleep(random.uniform(2, 5))
+                    await asyncio.sleep(random.uniform(5, 10))
 
             except Exception as e:
                 logging.error(e)
@@ -240,7 +232,7 @@ class MyClient(discord.Client):
         
         # Early return
         cid = message.channel.id
-        if (cid not in FOLLOW_CHANNELS + [DM_CHANNEL]):
+        if (cid not in self.follow_channels + [self.dm_channel]):
             return
         if message.author.id != KARUTA_ID:
             return
@@ -256,7 +248,7 @@ class MyClient(discord.Client):
 
     def check_cd_message(self, message):
 
-        if len(message.embeds) > 0 and "Showing cooldowns" in message.embeds[0].description and str(USERID) in message.embeds[0].description:
+        if len(message.embeds) > 0 and "Showing cooldowns" in message.embeds[0].description and str(self.user_id) in message.embeds[0].description:
             logging.info("Getting cooldowns")
             message_tokens = message.embeds[0].description.split("\n")
             grab_status = message_tokens[-2]
@@ -351,21 +343,21 @@ class MyClient(discord.Client):
     
     def check_fruit_grab(self, message_uuid, message_content):
         # karuta message for fruit
-        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you gathered a fruit piece" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(self.user_id)}>, you gathered a fruit piece" in message_content:
             self.fruits += 1
             logging.info(f"got a fruit {self.fruits}")
         
-        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you have too many unused" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(self.user_id)}>, you have too many unused" in message_content:
             self.fruits = 10000000
             logging.info(f"FRUIT WARNING DO NOT GET MORE FRUITS")
         
 
     def check_for_card_grab(self, message_uuid, message_content):
         #took a card - grab goes on cd
-        if message_uuid == KARUTA_ID and (f"<@{str(USERID)}> took the" in message_content or f"<@{str(USERID)}> fought off" in message_content):
+        if message_uuid == KARUTA_ID and (f"<@{str(self.user_id)}> took the" in message_content or f"<@{str(self.user_id)}> fought off" in message_content):
             logging.info(f"Took a card: message {message_content}")
 
-            if f"<@{str(USERID)}> fought off" in message_content:
+            if f"<@{str(self.user_id)}> fought off" in message_content:
                 logging.info("!!!!!!!!!!!!!!!!!!!!!!!!!YOU FOUGHT AND WON!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
             if self.evasion:
@@ -380,14 +372,14 @@ class MyClient(discord.Client):
 
     def check_for_evasion(self, message_uuid, message_content ):
         # Evasion
-        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Evasion** blessing has activated" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(self.user_id)}>, your **Evasion** blessing has activated" in message_content:
             logging.info("Evasion activated")
             self.grab = True
             self.grab_cd = random.uniform(2, 10)
             self.evasion += 1
 
     def check_for_cooldown_warning(self, message_uuid, message_content):
-        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you must wait" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(self.user_id)}>, you must wait" in message_content:
             if "before grabbing" in message_content:
                 grab_time = message_content.split("`")[1]
                 val = grab_time.split(" ")[0]
@@ -473,7 +465,7 @@ class MyClient(discord.Client):
 
     async def check_personal_drop(self, message_uuid, message_content, message, check_for_message_button_edit):
         # Karuta message for personal drop
-        if message_uuid == KARUTA_ID and str(USERID) in message_content and f"<@{str(USERID)}> is dropping" in message_content:
+        if message_uuid == KARUTA_ID and str(self.user_id) in message_content and f"<@{str(self.user_id)}> is dropping" in message_content:
             components = message.components
             rating = 0
             if len(components) > 0:
@@ -545,7 +537,7 @@ class MyClient(discord.Client):
 
 
     def check_for_generosity(self, message_uuid, message_content ):
-        if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Generosity** blessing has activated" in message_content:
+        if message_uuid == KARUTA_ID and f"<@{str(self.user_id)}>, your **Generosity** blessing has activated" in message_content:
             self.generosity = True
             logging.info(f"Generosity activated")
 
@@ -568,25 +560,24 @@ class MyClient(discord.Client):
                     click_delay = random.uniform(0.55, 1.5)
                     rating = 10
                     best_index = random.randint(0, len(components)-1)
-                    if ENABLE_OCR:
-                        try:
-                            best_index, rating = await self.get_best_card_index(message)
-                        except Exception as e:
-                            logging.error(f"OCR machine broke public {e}")
-                            logging.error(traceback.format_exc())
-                            return
-                        click_delay = random.uniform(0.55, 1.5)
+                    try:
+                        best_index, rating = await self.get_best_card_index(message)
+                    except Exception as e:
+                        logging.error(f"OCR machine broke public {e}")
+                        logging.error(traceback.format_exc())
+                        return
+                    click_delay = random.uniform(0.55, 1.5)
 
-                        if best_index == -1:
-                            logging.error(f"Could not process image for message: {message_content}")
-                            return
-                        
-                        if rating >= 2:
-                            logging.info(f"Clicking fast {click_delay}")
-                            click_delay = random.uniform(0.4, 0.8)
-                        if rating >= 5:
-                            click_delay = random.uniform(0.2, 0.3)
-                            logging.info(f"Clicking fastest {click_delay}")
+                    if best_index == -1:
+                        logging.error(f"Could not process image for message: {message_content}")
+                        return
+                    
+                    if rating >= 2:
+                        logging.info(f"Clicking fast {click_delay}")
+                        click_delay = random.uniform(0.4, 0.8)
+                    if rating >= 5:
+                        click_delay = random.uniform(0.2, 0.3)
+                        logging.info(f"Clicking fastest {click_delay}")
                     try:
                         await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                     except TimeoutError as e:
@@ -633,7 +624,7 @@ class MyClient(discord.Client):
         # Message in channel
         message_content = message.content
         message_uuid = message.author.id
-        if str(USERID) in message_content:
+        if str(self.user_id) in message_content:
             logging.debug(f"Message with id - content: {message_content}")
 
         try: 
@@ -644,7 +635,7 @@ class MyClient(discord.Client):
             await self.check_personal_drop(message_uuid, message_content, message, check_for_message_button_edit)
             self.check_for_generosity(message_uuid, message_content)
             
-            if CLICK_PUBLIC_DROP:
+            if self.click_public_drop:
                 await self.check_public_drop(message_uuid, message_content, message, check_for_message_button_edit)
         except Exception as e:
             logging.error(f"Something went wrong processing message {e}")
@@ -810,10 +801,26 @@ class MyClient(discord.Client):
         return best_idx, best_rating
 
 
-    
-def run():
-    client = MyClient()
-    client.run(TOKEN)
+def run_farm():
+    f = open(args.c)
+    data = json.load(f)
+    logging.info(f"Loaded config {data}")
+    gpt_api_key = data["open_ai_key"] 
+
+    for account in data["accounts"]:
+
+        token = account["token"]
+        author_name = account["name"]
+        user_id = account["id"]
+        dm_channel = account["dm_channel"]
+        drop_channels = account["drop_channels"]
+        follow_channels = account["follow_channels"]
+        click_public_drop = account["click_public_drop"]
+
+        logging.info(f"Starting for account {author_name}")
+        client = MyClient(user_id=user_id, dm_channel=dm_channel, drop_channels=drop_channels, follow_channels=follow_channels, click_public_drop=click_public_drop, gpt_api_key=gpt_api_key)
+        client.run(token)
+
 
 if __name__ == "__main__":
-    run()
+    run_farm()

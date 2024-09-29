@@ -21,6 +21,109 @@ import pytz
 import argparse
 import time
 
+PROMPTS = [
+    "What's the best meal you've had recently?",
+    "Do you have any travel plans coming up?",
+    "How do you usually spend your weekends?",
+    "Have you read any good books lately?",
+    "What's your favorite local restaurant?",
+    "Do you enjoy any outdoor activities?",
+    "What kind of music have you been listening to?",
+    "Do you follow any sports teams?",
+    "Have you seen any good movies or shows recently?",
+    "What’s your favorite way to relax after a long day?",
+    "How did you get into your current profession?",
+    "What’s something new you’ve learned recently?",
+    "Do you have any pets?",
+    "What’s your favorite season and why?",
+    "Do you have a hobby you're passionate about?",
+    "How do you usually start your mornings?",
+    "What’s a place you’d love to visit someday?",
+    "Do you prefer coffee or tea?",
+    "What’s the best vacation you’ve ever taken?",
+    "Have you tried any new recipes lately?",
+    "Do you enjoy attending any local events or festivals?",
+    "What’s your favorite app on your phone right now?",
+    "What’s one of your favorite childhood memories?",
+    "Do you enjoy cooking or baking?",
+    "Have you attended any concerts recently?",
+    "How do you like to spend time with your family?",
+    "What kind of podcasts do you listen to?",
+    "Are you a morning person or a night owl?",
+    "What’s the most interesting thing that happened to you this week?",
+    "Do you have any plans for the weekend?",
+    "What’s a skill you’d like to learn?",
+    "Have you ever tried learning a new language?",
+    "What’s your go-to comfort food?",
+    "What’s a fun fact about yourself?",
+    "Do you enjoy watching documentaries?",
+    "What’s the last thing you purchased online?",
+    "How do you like to stay active?",
+    "What’s a unique tradition your family follows?",
+    "Do you enjoy attending live performances or theater?",
+    "How do you usually unwind after work?",
+    "Do you have a favorite local coffee shop?",
+    "What’s your favorite kind of dessert?",
+    "Are you more of a city person or do you prefer the countryside?",
+    "What’s something you're looking forward to?",
+    "Do you enjoy any DIY projects?",
+    "What’s your favorite holiday and why?",
+    "What’s the most spontaneous thing you’ve ever done?",
+    "What’s your favorite way to exercise?",
+    "Have you visited any new places in your city recently?",
+    "Do you have any favorite board games or card games?",
+    "What’s your favorite time of day?",
+    "What’s your favorite type of cuisine?",
+    "Do you follow any interesting social media accounts?",
+    "What’s your favorite thing about your current job?",
+    "What’s your favorite way to celebrate your birthday?",
+    "Do you enjoy listening to audiobooks?",
+    "What’s a show you’re currently binge-watching?",
+    "Do you prefer mountains or the beach?",
+    "What’s your favorite kind of weather?",
+    "Have you been to any art galleries or museums lately?",
+    "Do you enjoy gardening or taking care of plants?",
+    "What’s your favorite thing to do on a rainy day?",
+    "What’s something you’ve always wanted to try?",
+    "What’s the last live event you attended?",
+    "How do you stay organized in your day-to-day life?",
+    "Do you have any recommendations for local attractions?",
+    "Have you been to any good restaurants or cafes lately?",
+    "What’s your favorite way to spend a lazy Sunday?",
+    "Do you have a favorite podcast you’d recommend?",
+    "What’s the best advice you’ve ever received?",
+    "Do you have a favorite park or outdoor spot to visit?",
+    "What’s your favorite comfort show to rewatch?",
+    "Do you have any unique hobbies or interests?",
+    "What’s something you’re really good at?",
+    "Have you been to any new countries or cities recently?",
+    "What’s your favorite way to spend time with friends?",
+    "Do you have a favorite recipe you love to cook?",
+    "What’s your favorite way to treat yourself?",
+    "How do you like to celebrate special occasions?",
+    "What’s the last book you couldn’t put down?",
+    "Do you have any hidden talents?",
+    "What’s your favorite place to relax outdoors?",
+    "Do you have a favorite breakfast food?",
+    "What’s your favorite kind of ice cream?",
+    "What’s something fun you’ve done recently?",
+    "How do you stay motivated during the week?",
+    "What’s the best gift you’ve ever received?",
+    "What’s your favorite thing about your hometown?",
+    "What’s your dream travel destination?",
+    "Have you ever tried a new hobby that surprised you?",
+    "What’s your favorite way to spend a holiday?",
+    "Do you enjoy any kind of creative outlets, like painting or writing?",
+    "What’s your favorite genre of music?",
+    "What’s the most memorable meal you’ve ever had?",
+    "What’s your favorite type of exercise or workout?",
+    "What’s something you wish more people knew about?",
+    "Do you enjoy trying new restaurants, or do you prefer cooking at home?",
+    "What’s your favorite thing about the place you live?",
+    "What’s your go-to way to stay healthy?",
+    "Do you have a favorite sports team or athlete?"
+]
+
 
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
@@ -69,7 +172,7 @@ def send_chat_gpt(api_key, prompt):
     chat_completion = client.chat.completions.create(
         messages=[
         {"role": "system", "content": "You are a girl who like anime and video games"},
-        {"role": "user", "content": prompt}
+        {"role": "user", "content": f"{random.choice(PROMPTS)} prompt"}
         ],
         model="gpt-4",
     )
@@ -142,8 +245,19 @@ class MyClient(discord.Client):
         channel = self.get_channel(selected_channel)
         async with channel.typing():
             await asyncio.sleep(random.uniform(3, 5))
-        await channel.send(send_chat_gpt(self.gpt_api_key, "mention something that happened in your day, with only a few words and with no punctuation or capitalizations, in madarin chinese hanzi"))
+        await channel.send(send_chat_gpt(self.gpt_api_key, "Use only a few words and with no punctuation or capitalizations, in madarin chinese hanzi."))
         await asyncio.sleep(random.uniform(2, 5))
+
+    async def random_karuta_message(self):
+        if random.randint(1,5) == 3:
+            selected_channel = self.drop_channels[0]
+            channel = self.get_channel(selected_channel)
+            async with channel.typing():
+                await asyncio.sleep(random.uniform(0.5, 2))
+            commands = ["kwi", "kc", "kci", "kv", "krm"]
+            await channel.send(random.choice(commands))
+            await asyncio.sleep(random.uniform(2, 5))
+
         
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
@@ -155,6 +269,12 @@ class MyClient(discord.Client):
             
                 # Should send message once every 60 min
                 await self.send_random_message()
+
+            if random.randint(1,600) == 50:
+                logging.info(f"seinding random message")
+            
+                # Should randomly send out
+                await self.check_cooldowns()
 
             logging.info(f"Polling  grab:{self.grab} drop:{self.drop}  grab cd:{self.grab_cd} fruits: {self.fruits}")
             await asyncio.sleep(random.uniform(5, 10))
@@ -352,7 +472,7 @@ class MyClient(discord.Client):
             logging.info(f"FRUIT WARNING DO NOT GET MORE FRUITS")
         
 
-    def check_for_card_grab(self, message_uuid, message_content):
+    async def check_for_card_grab(self, message_uuid, message_content):
         #took a card - grab goes on cd
         if message_uuid == KARUTA_ID and (f"<@{str(self.user_id)}> took the" in message_content or f"<@{str(self.user_id)}> fought off" in message_content):
             logging.info(f"Took a card: message {message_content}")
@@ -369,6 +489,10 @@ class MyClient(discord.Client):
                 logging.info(f"Grab cd set to {self.grab_cd}")
                 logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
             self.dropped_cards_awaiting_pickup = False
+
+            await self.random_karuta_message()
+
+
 
     def check_for_evasion(self, message_uuid, message_content ):
         # Evasion
@@ -630,7 +754,7 @@ class MyClient(discord.Client):
         try: 
             self.check_fruit_grab(message_uuid, message_content)
             self.check_for_evasion(message_uuid, message_content)
-            self.check_for_card_grab(message_uuid, message_content)
+            await self.check_for_card_grab(message_uuid, message_content)
             self.check_for_cooldown_warning(message_uuid, message_content)
             await self.check_personal_drop(message_uuid, message_content, message, check_for_message_button_edit)
             self.check_for_generosity(message_uuid, message_content)
@@ -824,3 +948,4 @@ def run_farm():
 
 if __name__ == "__main__":
     run_farm()
+

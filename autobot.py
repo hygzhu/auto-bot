@@ -106,7 +106,8 @@ class MyClient(discord.Client):
         self.last_dropped_channel = selected_channel
         channel = self.get_channel(selected_channel)
 
-        await asyncio.sleep(random.uniform(2, 4))
+        logging.info(f"-----------------------Adding delay before drop-----------------------")
+        await asyncio.sleep(random.uniform(2, 60))
 
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
@@ -149,6 +150,7 @@ class MyClient(discord.Client):
             start_hour = random.choice([1,2])
             end_hour = random.choice([5,6])
             while is_hour_between(start_hour, end_hour, hour):
+                await self.change_presence(status=discord.Status.invisible)
                 logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
@@ -168,23 +170,8 @@ class MyClient(discord.Client):
                 self.sleeping = False
                 self.drop = True
                 self.grab = True
-                #await self.check_cooldowns(dm)
+                await self.change_presence(status=discord.Status.online)
             self.sleeping = False
-
-            #take a break
-            # break_time = False
-            # if hour != self.last_hour:
-            #     break_time = random.randint(1,3) == 1
-            # if break_time:
-            #     logging.info("Time for a break!!")
-            #     sleep_time = random.uniform(500, 900)
-            #     logging.info(f"break for  {sleep_time}")          
-            #     self.sleeping = True
-            #     await asyncio.sleep(sleep_time)
-            #     self.sleeping = False
-            # else:
-            #     logging.info("No breaks!!")
-            # self.last_hour = hour
 
             # Do something
             try: 
@@ -540,11 +527,16 @@ class MyClient(discord.Client):
                             logging.error(f"Could not process image for message: {message_content}")
                             return
                         
+
+                        if message.channel.id == 1249793110012067880:
+                            click_delay += random.uniform(1, 3)
+                            logging.info(f"adding delay for covid class{click_delay}")
+                        
                         if rating >= 2:
                             logging.info(f"Clicking fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
                         if rating >= 5:
-                            click_delay = random.uniform(0.2, 0.3)
+                            click_delay = random.uniform(0.2, 0.5)
                             logging.info(f"Clicking fastest {click_delay}")
                     try:
                         await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)

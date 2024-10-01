@@ -127,8 +127,7 @@ class MyClient(discord.Client):
         logging.info(f"-----------------------Sending in channel DM-----------------------")
         await dm.send("kcd")
         await asyncio.sleep(random.uniform(2, 5))
-
-        
+    
     async def on_ready(self):
         logging.info('Logged on as %s', self.user)
         # Dm setup
@@ -190,16 +189,6 @@ class MyClient(discord.Client):
                 if self.grab_cd != 0:
                     logging.debug(f"Grab on cd {self.grab_cd}, waiting")
                     og_grab_cd = self.grab_cd
-                    # # random chance for kcd
-                    if random.randint(0,5) == 10:
-                        logging.info(f"Will check cd randomly")
-                        grab_cd = self.grab_cd
-                        await asyncio.sleep(grab_cd/2)
-                        await self.check_cooldowns(dm)
-                        await asyncio.sleep(grab_cd/2)
-                    else:
-                        await asyncio.sleep(self.grab_cd)
-                    # await asyncio.sleep(self.grab_cd)
 
                     # Using shared vars here - need lock
                     async with self.lock:
@@ -305,7 +294,6 @@ class MyClient(discord.Client):
             self.fruits = 10000000
             logging.info(f"FRUIT WARNING DO NOT GET MORE FRUITS")
         
-
     def check_for_card_grab(self, message_uuid, message_content):
         #took a card - grab goes on cd
         if message_uuid == KARUTA_ID and (f"<@{str(USERID)}> took the" in message_content or f"<@{str(USERID)}> fought off" in message_content):
@@ -562,8 +550,6 @@ class MyClient(discord.Client):
 
     async def on_message_helper(self, message: discord.Message):
 
-        cid = message.channel.id
-
         # Edit check helper
         def check_for_message_button_edit(before, after):
             if len(after.components) == 0:
@@ -578,15 +564,11 @@ class MyClient(discord.Client):
             else:
                 return False
 
-        self.check_for_dm(message)
-
         # Message in channel
         message_content = message.content
         message_uuid = message.author.id
-        if str(USERID) in message_content:
-            logging.debug(f"Message with id - content: {message_content}")
-
         try: 
+            self.check_for_dm(message)
             self.check_fruit_grab(message_uuid, message_content)
             self.check_for_evasion(message_uuid, message_content)
             self.check_for_card_grab(message_uuid, message_content)

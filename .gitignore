@@ -5,7 +5,6 @@ __pycache__
 config.json
 *.log
 *.db
-*.txt
 nohup.out
 output.log*
 config*

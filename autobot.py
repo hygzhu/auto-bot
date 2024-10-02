@@ -72,15 +72,11 @@ reader = easyocr.Reader(['en']) # this needs to run only once to load the model 
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
 path_to_ocr = "temp"
 
-def add_grab_cd():
-    return SECONDS_FOR_GRAB + random.uniform(0.55, 60)
-
 class MyClient(discord.Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.grab = False
         self.drop = False
-        self.grab_cd = 0
         self.seriesDB = queryWishList("SELECT DISTINCT series FROM cardinfo ORDER BY wishlistcount desc, series asc, character asc")
         self.characterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE wishlistcount > 1 ORDER BY wishlistcount desc, series asc, character asc")
         self.unpopCharacterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE wishlistcount < 2 ORDER BY wishlistcount desc, series asc, character asc")
@@ -136,7 +132,7 @@ class MyClient(discord.Client):
         # Auto drop
         while True:
 
-            logging.info(f"Polling  grab:{self.grab} drop:{self.drop}  grab cd:{self.grab_cd} fruits: {self.fruits}")
+            logging.info(f"Polling  grab:{self.grab} drop:{self.drop} fruits: {self.fruits}")
             await asyncio.sleep(random.uniform(5, 10))
             
             # Sleeping time
@@ -177,7 +173,7 @@ class MyClient(discord.Client):
                 # Using shared vars here - need lock
                 async with self.lock:
 
-                    if not self.grab and self.grab_cd == 0:
+                    if not self.grab:
                         await self.check_cooldowns(dm)
 
                     if DROP_STATUS:
@@ -185,26 +181,6 @@ class MyClient(discord.Client):
                             logging.info(f"Try to drop")
                             await self.drop_card()
                         
-                    
-                if self.grab_cd != 0:
-                    logging.debug(f"Grab on cd {self.grab_cd}, waiting")
-                    og_grab_cd = self.grab_cd
-
-                    # Using shared vars here - need lock
-                    async with self.lock:
-                        if self.grab_cd == og_grab_cd:
-                            logging.info(f"Grab cd didnt change, setting to 0")
-                            # Race condition, need to check grab cd didnt change
-                            self.grab_cd = 0
-                            logging.info(f"Grab cd set to {self.grab_cd}")
-                            self.grab = True
-                        else:
-                            logging.info(f"Grab cd changed")
-
-                else:
-                    #just wait a few before looping
-                    logging.debug(f"Wait a few before looping")
-                    await asyncio.sleep(random.uniform(2, 5))
 
             except Exception as e:
                 logging.error(e)
@@ -234,7 +210,6 @@ class MyClient(discord.Client):
             if len(message.embeds) == 0:
                 if "Your grab is now off cooldown" in  message.content:
                     self.grab = True
-                    self.grab_cd = 0
                     logging.info("Grab off cd!")
                 
                 if "Your drop is now off cooldown" in  message.content:
@@ -265,11 +240,6 @@ class MyClient(discord.Client):
                         seconds_for_grab = int(val)*60
                     else:
                         seconds_for_grab = int(val)
-                    self.grab_cd = seconds_for_grab + random.uniform(5, 30)
-                    logging.info(f"Grab cd set to {self.grab_cd}")
-                else:
-                    self.grab_cd = random.uniform(5, 25)
-                    logging.info(f"Grab cd set to {self.grab_cd}")
                 if not self.drop:
                     drop_time = drop_status.split("`")[1]
                     val = drop_time.split(" ")[0]
@@ -282,7 +252,6 @@ class MyClient(discord.Client):
                     drop_time = drop_status.split("`")[1]
 
                 logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
-                logging.info(f"Grab cd : {self.grab_cd}")
     
     def check_fruit_grab(self, message_uuid, message_content):
         # karuta message for fruit
@@ -307,9 +276,7 @@ class MyClient(discord.Client):
                 self.evasion -= 1
             else:
                 self.grab = False
-                self.grab_cd = add_grab_cd()
-                logging.info(f"Grab cd set to {self.grab_cd}")
-                logging.info(f"Updating grab cd to {self.grab_cd} since we grabbed card")
+                logging.info(f"Grab  set to false")
             self.dropped_cards_awaiting_pickup = False
 
     def check_for_evasion(self, message_uuid, message_content ):
@@ -317,7 +284,6 @@ class MyClient(discord.Client):
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Evasion** blessing has activated" in message_content:
             logging.info("Evasion activated")
             self.grab = True
-            self.grab_cd = random.uniform(2, 10)
             self.evasion += 1
 
     def check_for_cooldown_warning(self, message_uuid, message_content):
@@ -332,8 +298,7 @@ class MyClient(discord.Client):
                 else:
                     seconds_for_grab = int(val)
                 grab_delay= seconds_for_grab + random.uniform(30, 100)
-                logging.info(f"Got grab warning - updating grab cd to {grab_delay}")
-                self.grab_cd = grab_delay
+                logging.info(f"Got grab warning")
                 self.grab = False
 
             if "before dropping" in message_content:
@@ -401,8 +366,6 @@ class MyClient(discord.Client):
         await new_button.click()
         logging.info(f"-----------------------CLICK BUTTON in {message.channel.id}-----------------------------------")
         self.grab = False
-        self.grab_cd = 64 + random.uniform(5, 20)
-        logging.info(f"Grab cd set to {self.grab_cd}")
         await asyncio.sleep(random.uniform(0.3, 0.6))
 
     async def check_personal_drop(self, message_uuid, message_content, message, check_for_message_button_edit):

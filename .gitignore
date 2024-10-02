@@ -8,4 +8,4 @@ config.json
 nohup.out
 output.log*
 config*
-old_output*
+*old_output*

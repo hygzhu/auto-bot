@@ -88,6 +88,7 @@ class MyClient(discord.Client):
         self.last_dropped_channel = random.choice(DROP_CHANNELS)
         self.last_hour = 0
         self.dropped_cards_awaiting_pickup = False
+        self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
 
     async def drop_card(self):
 
@@ -101,9 +102,6 @@ class MyClient(discord.Client):
 
         self.last_dropped_channel = selected_channel
         channel = self.get_channel(selected_channel)
-
-        logging.info(f"-----------------------Adding delay before drop-----------------------")
-        await asyncio.sleep(random.uniform(2, 60))
 
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
@@ -129,10 +127,13 @@ class MyClient(discord.Client):
         # Dm setup
         dm = await self.get_user(KARUTA_ID).create_dm()
 
+        await self.check_cooldowns(dm)
+
         # Auto drop
         while True:
-
-            logging.info(f"Polling  grab:{self.grab} drop:{self.drop} fruits: {self.fruits}")
+            
+            diff= datetime.now().timestamp() - self.timestamp_for_grab_available
+            logging.info(f"Polling  grab:{self.grab} drop:{self.drop} seconds grab is avail: {diff} fruits: {self.fruits}")
             await asyncio.sleep(random.uniform(5, 10))
             
             # Sleeping time
@@ -168,16 +169,24 @@ class MyClient(discord.Client):
                 await self.change_presence(status=discord.Status.online)
             self.sleeping = False
 
+
+
             # Do something
             try: 
                 # Using shared vars here - need lock
                 async with self.lock:
-
-                    if not self.grab:
-                        await self.check_cooldowns(dm)
+                    
+                    diff= datetime.now().timestamp() - self.timestamp_for_grab_available
+                    if diff > 0:
+                        logging.info(f"Grab is available now, diff={diff}")
+                        self.grab = True
+                        self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
 
                     if DROP_STATUS:
                         if self.grab and self.drop:
+                            
+                            logging.info(f"-----------------------Adding delay before drop-----------------------")
+                            await asyncio.sleep(random.uniform(2, 60))
                             logging.info(f"Try to drop")
                             await self.drop_card()
                         
@@ -276,6 +285,7 @@ class MyClient(discord.Client):
                 self.evasion -= 1
             else:
                 self.grab = False
+                self.timestamp_for_grab_available = datetime.now().timestamp() + SECONDS_FOR_GRAB + random.randint(2,10)
                 logging.info(f"Grab  set to false")
             self.dropped_cards_awaiting_pickup = False
 
@@ -300,6 +310,7 @@ class MyClient(discord.Client):
                 grab_delay= seconds_for_grab + random.uniform(30, 100)
                 logging.info(f"Got grab warning")
                 self.grab = False
+                self.timestamp_for_grab_available = datetime.now().timestamp() + grab_delay
 
             if "before dropping" in message_content:
                 drop_time = message_content.split("`")[1]
@@ -366,6 +377,7 @@ class MyClient(discord.Client):
         await new_button.click()
         logging.info(f"-----------------------CLICK BUTTON in {message.channel.id}-----------------------------------")
         self.grab = False
+        self.timestamp_for_grab_available = datetime.now().timestamp() + 60 +  random.randint(2,10)
         await asyncio.sleep(random.uniform(0.3, 0.6))
 
     async def check_personal_drop(self, message_uuid, message_content, message, check_for_message_button_edit):
@@ -401,10 +413,10 @@ class MyClient(discord.Client):
                         click_delay = random.uniform(0.8, 2)
                         logging.info(f"Rating decent {click_delay}")
                         if rating >= 2:
-                            logging.info(f"Clicking fast {click_delay}")
+                            logging.info(f"fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
                         if rating >= 5:
-                            logging.info(f"Clicking fastest {click_delay}")
+                            logging.info(f"fastest {click_delay}")
                             click_delay = random.uniform(0.2, 0.3)
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
@@ -421,17 +433,17 @@ class MyClient(discord.Client):
                         click_delay = random.uniform(0.3, 1)
                         if rating >= 4:
                             click_delay = random.uniform(0.2, 0.3)
-                            logging.info(f"Clicking fast {click_delay}")
+                            logging.info(f" fast {click_delay}")
                         else:
                             click_delay = random.uniform(0.3, 1)
-                            logging.info(f"Clicking ok speed {click_delay}")
+                            logging.info(f"ok speed {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
                         await self.check_fruit_in_private_message(message)
                     else:
                         # Get fruits first
                         await self.check_fruit_in_private_message(message)
-                        logging.info(f"Rating too low clicking slow {click_delay}")
+                        logging.info(f"Rating too low slow {click_delay}")
                         click_delay = random.uniform(0.8, 3)
                         if rating < 1:
                             click_delay = random.uniform(4, 10)
@@ -484,11 +496,11 @@ class MyClient(discord.Client):
                             logging.info(f"adding delay for covid class{click_delay}")
                         
                         if rating >= 2:
-                            logging.info(f"Clicking fast {click_delay}")
+                            logging.info(f" fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
                         if rating >= 5:
                             click_delay = random.uniform(0.2, 0.5)
-                            logging.info(f"Clicking fastest {click_delay}")
+                            logging.info(f"fastest {click_delay}")
                     try:
                         await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                     except TimeoutError as e:
@@ -580,7 +592,7 @@ class MyClient(discord.Client):
                 ogReadPrint = reader.readtext(cardImageResult[2], detail=0, allowlist ='0123456789.')[0]
                 printNumFromOcr = int(str.split(ogReadPrint,".")[0])
             except Exception as e:
-                logging.error("print OCR failure")
+                logging.error(f"print OCR failure for message {message.id}")
 
             print_rating = 0   
             print_val = -1

@@ -146,7 +146,7 @@ class MyClient(discord.Client):
             start_hour = random.choice([1,2])
             end_hour = random.choice([5,6])
             while is_hour_between(start_hour, end_hour, hour):
-                await self.change_presence(status=discord.Status.invisible)
+                #await self.change_presence(status=discord.Status.invisible)
                 logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
@@ -166,7 +166,7 @@ class MyClient(discord.Client):
                 self.sleeping = False
                 self.drop = True
                 self.grab = True
-                await self.change_presence(status=discord.Status.online)
+                #await self.change_presence(status=discord.Status.online)
             self.sleeping = False
 
 
@@ -186,7 +186,7 @@ class MyClient(discord.Client):
                         if self.grab and self.drop:
                             
                             logging.info(f"-----------------------Adding delay before drop-----------------------")
-                            await asyncio.sleep(random.uniform(2, 60))
+                            await asyncio.sleep(random.uniform(2, 10))
                             logging.info(f"Try to drop")
                             await self.drop_card()
                         

@@ -8,7 +8,7 @@ echo "Trying to start up"
 trap '' HUP
 . dev_env/bin/activate
 echo "Run"
-nohup python3.12 autobot.py -c config2.json -drop -ocr 2> /dev/null &
+nohup python3.12 autobot.py -c config_mine.json 2> /dev/null &
 
 while true; do
     # Use the find command to search for files matching the pattern

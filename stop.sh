@@ -2,7 +2,7 @@
 
 echo "Trying to stop"
 
-pkill -9 -f autobot
+pkill -9 -f config_mine
 
 echo "Killed, ps output"
 

@@ -26,7 +26,6 @@ def timetz(*args):
     return datetime.now(tz).timetuple()
 
 tz = pytz.timezone('US/Eastern') # UTC, Asia/Shanghai, Europe/Berlin
-
 logging.basicConfig(
     format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
@@ -35,38 +34,33 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout),
         logging.FileHandler(f"output.log.{datetime.now().timestamp()}", mode="w"),
     ])
-
 logging.Formatter.converter = lambda *args: datetime.now(tz).timetuple()
 
 karuta_name = "Karuta"
 KARUTA_ID = 646937666251915264
-
 SECONDS_FOR_GRAB = 312
 SECONDS_FOR_DROP = 1816/2
 
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
-parser.add_argument("-drop", help="Enable drop",  action='store_true')
-parser.add_argument("-ocr", help="Enable ocr on public drop",  action='store_true')
 args = parser.parse_args()
+logging.info(f"Parser args config:{args.c}")
 
-logging.info(f"Parser args config:{args.c} drop:{args.drop} enableocr: {args.ocr}")
 
-ENABLE_OCR = args.ocr
-DROP_STATUS = args.drop
+def get_config_data():
+    f = open(args.c)
+    data = json.load(f)
+    return data
 
-f = open(args.c)
-data = json.load(f)
-logging.info(f"Loaded config {data}")
+data = get_config_data()
 
-TOKEN = data["token"]
-AUTHOR_NAME = data["name"]
 USERID = data["id"]
+TOKEN = data["token"]
 DM_CHANNEL = data["dm_channel"]
 DROP_CHANNELS = data["drop_channels"]
 FOLLOW_CHANNELS = data["follow_channels"]
-
 MAX_FRUITS = 4
+
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
@@ -133,7 +127,7 @@ class MyClient(discord.Client):
         while True:
             
             diff= datetime.now().timestamp() - self.timestamp_for_grab_available
-            logging.info(f"Polling  grab:{self.grab} drop:{self.drop} seconds grab is avail: {diff} fruits: {self.fruits}")
+            logging.info(f"g:{self.grab} d:{self.drop} f: {self.fruits} grab_cd: {diff}")
             await asyncio.sleep(random.uniform(5, 10))
             
             # Sleeping time
@@ -146,7 +140,6 @@ class MyClient(discord.Client):
             start_hour = random.choice([1,2])
             end_hour = random.choice([5,6])
             while is_hour_between(start_hour, end_hour, hour):
-                #await self.change_presence(status=discord.Status.invisible)
                 logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
                 utc = pytz.utc
                 now = datetime.now(tz=utc)
@@ -166,10 +159,7 @@ class MyClient(discord.Client):
                 self.sleeping = False
                 self.drop = True
                 self.grab = True
-                #await self.change_presence(status=discord.Status.online)
             self.sleeping = False
-
-
 
             # Do something
             try: 
@@ -182,13 +172,13 @@ class MyClient(discord.Client):
                         self.grab = True
                         self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
 
-                    if DROP_STATUS:
-                        if self.grab and self.drop:
-                            
-                            logging.info(f"-----------------------Adding delay before drop-----------------------")
-                            await asyncio.sleep(random.uniform(2, 10))
-                            logging.info(f"Try to drop")
-                            await self.drop_card()
+
+                    if self.grab and self.drop:
+                        
+                        logging.info(f"-----------------------Adding delay before drop-----------------------")
+                        await asyncio.sleep(random.uniform(2, 10))
+                        logging.info(f"Try to drop")
+                        await self.drop_card()
                         
 
             except Exception as e:
@@ -409,13 +399,13 @@ class MyClient(discord.Client):
                     self.drop = True
                     self.generosity = False
                     # skip grab if garbage
-                    if rating > 1:
+                    if rating >= 1:
                         click_delay = random.uniform(0.8, 2)
                         logging.info(f"Rating decent {click_delay}")
                         if rating >= 2:
                             logging.info(f"fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
-                        if rating >= 5:
+                        if rating >= 3:
                             logging.info(f"fastest {click_delay}")
                             click_delay = random.uniform(0.2, 0.3)
                         await self.click_card_button(message, best_index, click_delay)
@@ -443,10 +433,11 @@ class MyClient(discord.Client):
                     else:
                         # Get fruits first
                         await self.check_fruit_in_private_message(message)
-                        logging.info(f"Rating too low slow {click_delay}")
                         click_delay = random.uniform(0.8, 3)
                         if rating < 1:
                             click_delay = random.uniform(4, 10)
+                            
+                        logging.info(f"Rating too low slow {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
             self.dropped_cards_awaiting_pickup = False
@@ -474,40 +465,37 @@ class MyClient(discord.Client):
 
             if self.grab and not self.drop:
                 if len(components) > 0:
+
+                    logging.info(f"Analyzing message id={message.id} guild={message.channel.id}")
+
                     click_delay = random.uniform(0.55, 1.5)
-                    rating = 10
+                    rating = 0
                     best_index = random.randint(0, len(components)-1)
-                    if ENABLE_OCR:
-                        try:
-                            best_index, rating = await self.get_best_card_index(message)
-                        except Exception as e:
-                            logging.error(f"OCR machine broke public {e}")
-                            logging.error(traceback.format_exc())
-                            return
-                        click_delay = random.uniform(0.55, 1.5)
+                    try:
+                        best_index, rating = await self.get_best_card_index(message)
+                    except Exception as e:
+                        logging.error(f"OCR machine broke public {e}")
+                        logging.error(traceback.format_exc())
+                        return
+                    click_delay = random.uniform(0.55, 1.5)
 
-                        if best_index == -1:
-                            logging.error(f"Could not process image for message: {message_content}")
-                            return
-                        
-
-                        if message.channel.id == 1249793110012067880:
-                            click_delay += random.uniform(1, 3)
-                            logging.info(f"adding delay for covid class{click_delay}")
-                        
-                        if rating >= 2:
-                            logging.info(f" fast {click_delay}")
-                            click_delay = random.uniform(0.4, 0.8)
-                        if rating >= 5:
-                            click_delay = random.uniform(0.2, 0.5)
-                            logging.info(f"fastest {click_delay}")
+                    if best_index == -1:
+                        logging.error(f"Could not process image for message: {message_content}")
+                        return
+                    
+                    if rating >= 2:
+                        logging.info(f" fast {click_delay}")
+                        click_delay = random.uniform(0.4, 0.8)
+                    if rating >= 5:
+                        click_delay = random.uniform(0.2, 0.5)
+                        logging.info(f"fastest {click_delay}")
                     try:
                         await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
                     except TimeoutError as e:
                         logging.error(f"Wait for timed out {e}")
                     waited_for_edit = True
                     logging.debug("Lets try to grab - drop is on cd")
-                    if rating < 3:
+                    if rating < 2:
                         logging.info("Rating too low, skipping")
                     else:
                         logging.info("Rating good, lets grab")
@@ -569,13 +557,13 @@ class MyClient(discord.Client):
                 file.write(requests.get(attachements_url).content)
             ocrPath = os.path.join(tempPath, "ocr")
             processedImgResultList = await preProcessImg(tempPath, dropsPath, ocrPath, cardnum)
-            cardList = []
+
         except Exception as e:
             logging.error(f"Something went wrong in processing, {e}, {attachements_url}")
         
         if len(processedImgResultList) == 0:
             return -1
-
+        cardList = []
         for cardImageResult in processedImgResultList:
 
             seriesNameFromOcr = "--------------------------------"
@@ -586,133 +574,109 @@ class MyClient(discord.Client):
                 seriesNameFromOcr = f"{seriesOriginal[:46]}..."
             except Exception as e:
                 logging.error("Text OCR failure")
-
-            printNumFromOcr = 100000000
+            UNKNOWN_PRINT_SENTINEL = 100000000
+            printNumFromOcr = UNKNOWN_PRINT_SENTINEL
             try:
                 ogReadPrint = reader.readtext(cardImageResult[2], detail=0, allowlist ='0123456789.')[0]
                 printNumFromOcr = int(str.split(ogReadPrint,".")[0])
             except Exception as e:
                 logging.error(f"print OCR failure for message {message.id}")
 
-            print_rating = 0   
-            print_val = -1
-            if printNumFromOcr < 100:
-                print_val = 4
-                print_rating = 3
-            elif printNumFromOcr < 1000:
-                print_val = 3
-                print_rating = 2
-            elif printNumFromOcr < 10000:
-                print_val = 2
-                print_rating = 1
-            elif printNumFromOcr < 10000:
-                print_val = 1
-            elif printNumFromOcr < 50000:
-                print_val = 0
-
-            cardList.append((charNameFromOcr, seriesNameFromOcr, printNumFromOcr, print_val, print_rating))
+            cardList.append((charNameFromOcr, seriesNameFromOcr, printNumFromOcr ))
         logging.debug(f"Cardlist: {cardList}")
 
         # Query for the series/char.
         results = []
         
-        for cardPos, (cardChar, cardSeries, cardPrint, print_val, printrating) in enumerate(cardList):
+        for cardPos, (cardChar, cardSeries, cardPrint) in enumerate(cardList):
             found, matchedSeries, matchedChar, wishlistCount = findBestMatch(cardSeries, cardChar, self.seriesDB, self.characterDB)
-            
-            wishlist_val = 0
-            wl_rating = 0
-            if wishlistCount > 5000:
-                wishlist_val = 10
-                wl_rating = 10
-                logging.info(f"Wow crazy WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 1000:
-                wishlist_val = 9
-                wl_rating = 7
-                logging.info(f"Wow high WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 500:
-                wishlist_val = 8
-                wl_rating = 6
-                logging.info(f"medium WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 100:
-                wishlist_val = 7
-                wl_rating = 5
-                logging.info(f"small WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 30:
-                wishlist_val = 7
-                wl_rating = 4
-                logging.info(f"tiny WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount >= 10:
-                wishlist_val = 3
-                wl_rating = 2
-                logging.info(f"mini WL name: {cardChar} series: {cardSeries} print: {cardPrint} Wl: {wishlistCount}")
-            elif wishlistCount > 5:
-                wishlist_val = 2
-                wl_rating = 1
-            elif wishlistCount > 0:
-                wishlist_val = 1
-            
-            results.append((wishlist_val, wishlistCount, wl_rating))
+
+            results.append(wishlistCount)
         logging.debug(f"Results: {results}")
 
-        decision = []
+        card_metadata = []
 
         for card, wishlist in zip(cardList, results):
-            decision.append({
+            card_metadata.append({
                 "name": card[0],
                 "series": card[1],
                 "printcount": card[2],
-                "print": card[3],
-                "printrating": card[4],
-                "wl": wishlist[0],
-                "wlcount": wishlist[1],
-                "wlrating": wishlist[2],
+                "wlcount": wishlist
             })
 
+        all_cards = []
+        for og_index, meta in enumerate(card_metadata):
+            all_cards.append((og_index, meta))
+
+        high_wl = []
+        mid_wl = []
+        low_wl = []
+        garbage_wl = []
+
+        special_print = []
+        great_print = []
+        ok_print = []
+        garbage_print = []
+
+        for card in all_cards:
+            wl = card[1]["wlcount"]
+            print = card[1]["printcount"]
+
+            if wl > 999:
+                high_wl.append(card)
+            if 999 >= wl > 50:
+                mid_wl.append(card)
+            if 50 >= wl > 19:
+                low_wl.append(card)
+            if 19 >= wl:
+                garbage_wl.append(card)
+
+            if UNKNOWN_PRINT_SENTINEL > print > 50000:
+                garbage_print.append(card)
+            if 50000 >= print >= 10000:
+                ok_print.append(card)
+            if 10000 > print:
+                great_print.append(card)
+            if print == UNKNOWN_PRINT_SENTINEL:
+                special_print.append(card)
+
+        # Sortem
+        high_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        mid_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        low_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        garbage_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+
+        special_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        great_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        ok_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        garbage_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+
+        final_order = [] + high_wl + mid_wl + low_wl + special_print + great_print + ok_print + garbage_wl + garbage_print
+
+        if len(final_order) == 0:
+            final_order = all_cards
 
         logging.info(f"Cards analyzed:\n{"\n".join([
             f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
-            for dec in decision])}")
-        best_card = decision[0]
-        best_idx = 0
-        best_rating = 0
-        for idx, card in enumerate(decision):
-            
-            rating = max(card["wlrating"],card["printrating"])
-
-            if rating > best_rating:
-                best_card = card
-                best_idx = idx
-                best_rating = rating
-            else:
-
-                if card["wl"] > best_card["wl"]:
-                    best_card = card
-                    best_idx = idx
-                    best_rating = rating
-                if card["wl"] == best_card["wl"]:
-                    if card["print"] > best_card["print"]:
-                        best_card = card
-                        best_idx = idx
-                        best_rating = rating
-
-                if card["wl"] == best_card["wl"] and card["print"] == best_card["print"]:
-                    if card["wlcount"] > best_card["wlcount"]:
-                        best_card = card
-                        best_idx = idx
-                        best_rating = rating
-                    if card["wlcount"] == best_card["wlcount"]:
-                        if card["printcount"] < best_card["printcount"]:
-                            best_card = card
-                            best_idx = idx
-                            best_rating = rating
-
+            for dec in card_metadata])}")
         
-        logging.info(f"Best card is idx {best_idx} with rating {best_rating}")
+        rating = 0
+
+        if (len(special_print) > 0):
+            rating = 1
+        if (len(low_wl) > 0):
+            rating = 1
+        if (len(mid_wl) > 0):
+            rating = 2
+        if (len(high_wl) > 0):
+            rating = 10
+
+        logging.info(f"rating {rating} final order: {str([val[0] for val in final_order])} ")
 
         end = time.time()
         logging.debug(f"Took {end-start} time to get best index")
 
-        return best_idx, best_rating
+        return final_order[0][0], rating
 
 
     

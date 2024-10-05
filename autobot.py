@@ -364,10 +364,10 @@ class MyClient(discord.Client):
         new_button = message.components[0].children[best_index]
         await asyncio.sleep(click_delay)
         logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
-        await new_button.click()
-        logging.info(f"-----------------------CLICK BUTTON in {message.channel.id}-----------------------------------")
         self.grab = False
         self.timestamp_for_grab_available = datetime.now().timestamp() + 60 +  random.randint(2,10)
+        await new_button.click()
+        logging.info(f"-----------------------CLICK BUTTON in {message.channel.id}-----------------------------------")
         await asyncio.sleep(random.uniform(0.3, 0.6))
 
     async def check_personal_drop(self, message_uuid, message_content, message, check_for_message_button_edit):

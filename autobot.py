@@ -5,14 +5,10 @@ import logging
 import sys
 import os
 import time
-import shutil
 import easyocr
 import requests
 import traceback
 from util import *
-from os import listdir
-from os.path import isfile, join
-from ocr import *
 from ocr import *
 from util import *
 from wishlistdb import *
@@ -53,12 +49,12 @@ def get_config_data():
     return data
 
 data = get_config_data()
-
 USERID = data["id"]
 TOKEN = data["token"]
 DM_CHANNEL = data["dm_channel"]
 DROP_CHANNELS = data["drop_channels"]
 FOLLOW_CHANNELS = data["follow_channels"]
+VISIT_CARD_CODES = ["vntjf75", "vntkhhh", "vntsbmf", "vnc7c18", "vnv4l1g", "v108m63"]
 MAX_FRUITS = 4
 
 
@@ -69,20 +65,23 @@ path_to_ocr = "temp"
 class MyClient(discord.Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.grab = False
-        self.drop = False
         self.seriesDB = queryWishList("SELECT DISTINCT series FROM cardinfo ORDER BY wishlistcount desc, series asc, character asc")
         self.characterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE wishlistcount > 1 ORDER BY wishlistcount desc, series asc, character asc")
-        self.unpopCharacterDB = queryWishList("SELECT DISTINCT character FROM cardinfo WHERE wishlistcount < 2 ORDER BY wishlistcount desc, series asc, character asc")
+        self.grab = False
+        self.drop = False
+        self.daily = False
+        self.vote = False
+        self.work = False
+        self.visit = False
+        self.evasion = 0 # Is an int since evasion can stack culmulatively
+        self.generosity = False
         self.fruits = 0
         self.sleeping = False
-        self.evasion = 0
-        self.generosity = False
         self.lock = asyncio.Lock()
         self.last_dropped_channel = random.choice(DROP_CHANNELS)
-        self.last_hour = 0
         self.dropped_cards_awaiting_pickup = False
         self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
+        self.dateable_codes = []
 
     async def drop_card(self):
 
@@ -115,72 +114,73 @@ class MyClient(discord.Client):
         logging.info(f"-----------------------Sending in channel DM-----------------------")
         await dm.send("kcd")
         await asyncio.sleep(random.uniform(2, 5))
-    
-    async def on_ready(self):
-        logging.info('Logged on as %s', self.user)
-        # Dm setup
-        dm = await self.get_user(KARUTA_ID).create_dm()
 
-        await self.check_cooldowns(dm)
+    async def send_dm_msg(self, dm, msg):
+        logging.info("Checking remind")
+        async with dm.typing():
+            await asyncio.sleep(random.uniform(0.2, 1))
+        logging.info(f"-----------------------Sending in channel DM-----------------------")
+        await dm.send(msg)
+        await asyncio.sleep(random.uniform(2, 5))
 
-        # Auto drop
-        while True:
-            
-            diff= datetime.now().timestamp() - self.timestamp_for_grab_available
-            logging.info(f"g:{self.grab} d:{self.drop} f: {self.fruits} grab_cd: {diff}")
-            await asyncio.sleep(random.uniform(5, 10))
-            
-            # Sleeping time
+
+    async def maybe_go_to_sleep(self):
+        utc = pytz.utc
+        now = datetime.now(tz=utc)
+        eastern = pytz.timezone('US/Eastern')
+        loc_dt = now.astimezone(eastern)
+        hour = loc_dt.hour
+        start_hour = random.choice([1,2])
+        end_hour = random.choice([5,6])
+        while is_hour_between(start_hour, end_hour, hour):
+            logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
+            utc = pytz.utc
+            now = datetime.now(tz=utc)
+            eastern = pytz.timezone('US/Eastern')
+            loc_dt = now.astimezone(eastern)
             utc = pytz.utc
             now = datetime.now(tz=utc)
             eastern = pytz.timezone('US/Eastern')
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
-
-            start_hour = random.choice([1,2])
-            end_hour = random.choice([5,6])
-            while is_hour_between(start_hour, end_hour, hour):
-                logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
-                utc = pytz.utc
-                now = datetime.now(tz=utc)
-                eastern = pytz.timezone('US/Eastern')
-                loc_dt = now.astimezone(eastern)
-                
-                utc = pytz.utc
-                now = datetime.now(tz=utc)
-                eastern = pytz.timezone('US/Eastern')
-                loc_dt = now.astimezone(eastern)
-                hour = loc_dt.hour
-                sleep_time = random.uniform(600, 1200)
-                logging.info(f"Hour is {hour} Sleeping for {sleep_time}")
-                self.sleeping = True
-                await asyncio.sleep(sleep_time)
-            if self.sleeping:
-                self.sleeping = False
-                self.drop = True
-                self.grab = True
+            sleep_time = random.uniform(1800, 2000) # Sleep for 30 minutes ish
+            logging.info(f"Hour is {hour} Sleeping for {sleep_time}")
+            self.sleeping = True
+            await asyncio.sleep(sleep_time)
+        if self.sleeping:
             self.sleeping = False
+            self.drop = True
+            self.grab = True
+        self.sleeping = False
 
+    async def on_ready(self):
+        logging.info('Logged on as %s', self.user)
+        # Dm setup
+        dm = self.get_channel(DM_CHANNEL)
+
+        await self.check_cooldowns(dm)
+
+        # Auto drop
+        while True:
+            diff= datetime.now().timestamp() - self.timestamp_for_grab_available
+            logging.info(f"g:{self.grab} d:{self.drop} f: {self.fruits} grab_cd: {diff}")
+            await asyncio.sleep(random.uniform(5, 10))
+            # Sleeping time
+            await self.maybe_go_to_sleep()
             # Do something
             try: 
                 # Using shared vars here - need lock
                 async with self.lock:
-                    
                     diff= datetime.now().timestamp() - self.timestamp_for_grab_available
                     if diff > 0:
                         logging.info(f"Grab is available now, diff={diff}")
                         self.grab = True
                         self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
-
-
                     if self.grab and self.drop:
-                        
                         logging.info(f"-----------------------Adding delay before drop-----------------------")
                         await asyncio.sleep(random.uniform(2, 10))
                         logging.info(f"Try to drop")
-                        await self.drop_card()
-                        
-
+                        await self.drop_card()     
             except Exception as e:
                 logging.error(e)
 
@@ -202,7 +202,7 @@ class MyClient(discord.Client):
             await self.on_message_helper(message)
         logging.debug("Done new message!")
 
-    def check_for_dm(self, message):
+    def check_for_dm(self, message: discord.Message):
         # Dm messages
         if not message.guild and message.author.id == KARUTA_ID:
             logging.info("Got dm")
@@ -216,12 +216,13 @@ class MyClient(discord.Client):
                     logging.info("drop off cd!")
                 return
             
-            #Run kevent reply - rtefresh fruit count
+            #Run kevent reply - refresh fruit count
             if len(message.embeds) > 0 and "Gather fruit pieces to place on the board below." in message.embeds[0].description:
                 logging.info("Refreshing fruit")
                 self.fruits = 0
                 return
 
+            # kcd check
             if len(message.embeds) > 0 and "Showing cooldowns" in message.embeds[0].description:
                 logging.info("Getting cooldowns")
                 message_tokens = message.embeds[0].description.split("\n")
@@ -251,7 +252,41 @@ class MyClient(discord.Client):
                     drop_time = drop_status.split("`")[1]
 
                 logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
-    
+
+            # krm check
+            if len(message.embeds) > 0 and message.embeds[0].author and "Reminders" in message.embeds[0].author.name:
+                logging.info("Getting reminders")
+                message_tokens = message.embeds[0].description.split("\n")
+                daily_status = message_tokens[-6]
+                vote_status = message_tokens[-5]
+                drop_status = message_tokens[-4]
+                grab_status = message_tokens[-3]
+                work_staus = message_tokens[-2]
+                visit_status = message_tokens[-1]
+                self.daily = "is ready" in daily_status
+                self.vote = "is ready" in vote_status
+                self.grab =  "is ready" in grab_status
+                self.drop = "is ready" in drop_status
+                self.work = "is ready" in work_staus
+                self.visit = "is ready" in visit_status
+
+                logging.info(f"\nDaily:{self.daily}\nVote:{self.vote}\nGrab:{self.grab}\n Drop:{self.drop}\nWork:{self.work}\nVisit:{self.visit}")
+            
+            # kafl check
+            if len(message.embeds) > 0 and "Affection status" in message.embeds[0].description:
+                message_tokens = message.embeds[0].description.split("\n")
+                for line in message_tokens:
+                    code = ""
+                    for substring in VISIT_CARD_CODES:
+                        if substring in line:
+                            code = substring
+                            break
+                    if ":greencar:" in line and code != "":
+                        self.dateable_codes.append(code)
+                logging.info(f"Dateable: {self.dateable_codes}")
+
+
+
     def check_fruit_grab(self, message_uuid, message_content):
         # karuta message for fruit
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, you gathered a fruit piece" in message_content:

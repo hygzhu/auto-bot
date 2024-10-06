@@ -141,10 +141,9 @@ class MyClient(discord.Client):
         await asyncio.sleep(random.uniform(2, 5))
 
     async def send_msg(self, channel: discord.TextChannel, msg: str):
-        logging.info("Checking remind")
+        logging.info(f"Sending message {msg} to channel {channel}")
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
-        logging.info(f"-----------------------Sending in channel-----------------------")
         await channel.send(msg)
         await asyncio.sleep(random.uniform(2, 5))
 
@@ -207,6 +206,7 @@ class MyClient(discord.Client):
 
                     if self.dating != "":
                         await self.send_msg(dating_channel, f"kvi")
+                        self.dating = ""
 
                     diff= datetime.now().timestamp() - self.timestamp_for_grab_available
                     if diff > 0:
@@ -662,7 +662,6 @@ class MyClient(discord.Client):
 
                         # Try to date
                         dating_message = await self.get_channel(DATING_CHANNEL).fetch_message(self.last_dating_message)
-                        self.dating = ""
                         self.last_dating_message = None
 
                         def check(before, after):

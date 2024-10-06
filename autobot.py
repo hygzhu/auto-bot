@@ -76,7 +76,7 @@ TOKEN = data["token"]
 DM_CHANNEL = data["dm_channel"]
 DROP_CHANNELS = data["drop_channels"]
 FOLLOW_CHANNELS = data["follow_channels"]
-VISIT_CARD_CODES = ["vntjf75", "vntkhhh", "vntsbmf", "vnc7c18", "vnv4l1g", "v108m63"]
+VISIT_CARD_CODES = ["vntjf75", "vntkhhh", "vntsbmf", "vnc7c18", "vnv4l1g", "v108m63"] # v1q6dwv 
 DATING_CHANNEL = 928635044673777695 # guild
 MAX_FRUITS = 4
 DISCORD_USER = "solaggy"
@@ -649,7 +649,6 @@ class MyClient(discord.Client):
                             if len(dating_message.components) > 0 and len(dating_message.components[0].children) > 0:
                                 for component in dating_message.components:
                                     for child in component.children:
-                                        logging.info(f"Possible button: {child} {child.emoji} {child.emoji.name}")
                                         if child.emoji.name == emoji:
                                             await asyncio.sleep(random.uniform(1, 3))
                                             while child.disabled:
@@ -665,15 +664,16 @@ class MyClient(discord.Client):
                             raise Exception("Could not click next path item")
 
                         # Try to date
-                        dating_message = await self.get_channel(DATING_CHANNEL).fetch_message(self.last_dating_message)
+                        dating_message_id = self.last_dating_message
                         self.last_dating_message = None
-
-                        def check(before, after):
-                            # Check if the message being edited is the same as the one we're tracking
-                            return before.id == dating_message.id and after.id == dating_message.id  and after.edited_at != before.edited_at
                         
                         logging.info("Date Start")
                         for emoji in best_path:
+                            dating_message = await self.get_channel(DATING_CHANNEL).fetch_message(dating_message_id)
+                            def check(before, after):
+                                # Check if the message being edited is the same as the one we're tracking
+                                return before.id == dating_message.id and after.id == dating_message.id  and after.edited_at != before.edited_at
+                        
                             await click_emoji(dating_message, emoji, check)
 
     async def apply_dating_solution(self, message: discord.Message):

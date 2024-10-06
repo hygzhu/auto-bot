@@ -17,6 +17,7 @@ from datetime import datetime, time
 import pytz
 import argparse
 import time
+import re
 
 def timetz(*args):
     return datetime.now(tz).timetuple()
@@ -34,6 +35,7 @@ logging.Formatter.converter = lambda *args: datetime.now(tz).timetuple()
 
 karuta_name = "Karuta"
 KARUTA_ID = 646937666251915264
+KOIBOT_ID = 877620197299748945
 SECONDS_FOR_GRAB = 312
 SECONDS_FOR_DROP = 1816/2
 
@@ -42,6 +44,26 @@ parser.add_argument("-c", required=True, help="Config location", type=str)
 args = parser.parse_args()
 logging.info(f"Parser args config:{args.c}")
 
+emoji_map = {
+    "arrow_up_small": "🔼",
+    "arrow_down_small": "🔽",
+    "arrow_forward": "▶️",
+    "arrow_backward": "◀️",
+    "sandwich": "🥪",
+    "taco": "🌮",
+    "shopping_bags": "🛍️",
+    "ferris_wheel": "🎡",
+    "fuelpump": "⛽",
+    "performing_arts": "🎭",
+    "tropical_drink": "🍹",
+    "ring": "💍",
+    "beverage_box": "🧃",
+    "blossom": "🌼",
+    "coffee": "☕",
+    "dancer": "💃",
+    "house_with_garden": "🏡",
+    "spaghetti": "🍝",
+}
 
 def get_config_data():
     f = open(args.c)
@@ -55,8 +77,9 @@ DM_CHANNEL = data["dm_channel"]
 DROP_CHANNELS = data["drop_channels"]
 FOLLOW_CHANNELS = data["follow_channels"]
 VISIT_CARD_CODES = ["vntjf75", "vntkhhh", "vntsbmf", "vnc7c18", "vnv4l1g", "v108m63"]
+DATING_CHANNEL = 928635044673777695 # guild
 MAX_FRUITS = 4
-
+DISCORD_USER = "solaggy"
 
 reader = easyocr.Reader(['en']) # this needs to run only once to load the model into memory
 match = "(is dropping [3-4] cards!)|(I'm dropping [3-4] cards since this server is currently active!)"
@@ -73,6 +96,8 @@ class MyClient(discord.Client):
         self.vote = False
         self.work = False
         self.visit = False
+        self.dating = ""
+        self.last_dating_message = None
         self.evasion = 0 # Is an int since evasion can stack culmulatively
         self.generosity = False
         self.fruits = 0
@@ -115,12 +140,12 @@ class MyClient(discord.Client):
         await dm.send("kcd")
         await asyncio.sleep(random.uniform(2, 5))
 
-    async def send_dm_msg(self, dm, msg):
+    async def send_msg(self, channel: discord.TextChannel, msg: str):
         logging.info("Checking remind")
-        async with dm.typing():
+        async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
-        logging.info(f"-----------------------Sending in channel DM-----------------------")
-        await dm.send(msg)
+        logging.info(f"-----------------------Sending in channel-----------------------")
+        await channel.send(msg)
         await asyncio.sleep(random.uniform(2, 5))
 
 
@@ -157,6 +182,7 @@ class MyClient(discord.Client):
         logging.info('Logged on as %s', self.user)
         # Dm setup
         dm = self.get_channel(DM_CHANNEL)
+        dating_channel = self.get_channel(DATING_CHANNEL)
 
         await self.check_cooldowns(dm)
 
@@ -171,6 +197,17 @@ class MyClient(discord.Client):
             try: 
                 # Using shared vars here - need lock
                 async with self.lock:
+
+                    if self.visit and self.dateable_codes:
+                        logging.info(f"sending visit")
+                        code = self.dateable_codes.pop()
+                        await self.send_msg(dm, f"kvi {code}")
+                        self.visit = False
+                        self.dating = code
+
+                    if self.dating != "":
+                        await self.send_msg(dating_channel, f"kvi")
+
                     diff= datetime.now().timestamp() - self.timestamp_for_grab_available
                     if diff > 0:
                         logging.info(f"Grab is available now, diff={diff}")
@@ -182,15 +219,15 @@ class MyClient(discord.Client):
                         logging.info(f"Try to drop")
                         await self.drop_card()     
             except Exception as e:
-                logging.error(e)
+                logging.exception(e)
 
     async def on_message(self, message: discord.Message):
         
         # Early return
         cid = message.channel.id
-        if (cid not in FOLLOW_CHANNELS + [DM_CHANNEL]):
+        if (cid not in FOLLOW_CHANNELS + [DM_CHANNEL] + [DATING_CHANNEL]):
             return
-        if message.author.id != KARUTA_ID:
+        if message.author.id != KARUTA_ID and message.author.id != KOIBOT_ID:
             return
         if self.sleeping:
             logging.info("I'm sleeping!")
@@ -202,7 +239,7 @@ class MyClient(discord.Client):
             await self.on_message_helper(message)
         logging.debug("Done new message!")
 
-    def check_for_dm(self, message: discord.Message):
+    async def check_for_dm(self, message: discord.Message, check_for_message_button_edit):
         # Dm messages
         if not message.guild and message.author.id == KARUTA_ID:
             logging.info("Got dm")
@@ -284,6 +321,33 @@ class MyClient(discord.Client):
                     if ":greencar:" in line and code != "":
                         self.dateable_codes.append(code)
                 logging.info(f"Dateable: {self.dateable_codes}")
+
+            # kvi check
+            if len(message.embeds) > 0 and "You can switch which character" in message.embeds[0].description:
+                if len(message.components) > 0 and len(message.components[0].children) > 0 and "Visit" in  message.components[0].children[0].label:
+                    logging.info("Visiting char")
+                    await asyncio.sleep(random.uniform(0.3, 2))
+                    visit_button = message.components[0].children[0]
+                    await visit_button.click()
+                    await asyncio.sleep(random.uniform(0.3, 2))
+                    try:
+                        await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
+                    except TimeoutError as e:
+                        logging.error(f"Wait for visit button timed out {e}")
+                    if len(message.components) > 0 and len(message.components[0].children) > 3:
+                        logging.info("click date")
+                        date_button = message.components[0].children[2]
+                        await date_button.click()
+                        await asyncio.sleep(random.uniform(0.3, 2))
+                        try:
+                            await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
+                        except TimeoutError as e:
+                            logging.error(f"Wait for visit button timed out {e}")
+                        if len(message.components) > 0 and len(message.components[0].children) > 0:
+                            logging.info("click yes to date")
+                            yes_button = message.components[0].children[0]
+                            await yes_button.click()
+                            await asyncio.sleep(random.uniform(0.3, 2))
 
 
 
@@ -416,8 +480,7 @@ class MyClient(discord.Client):
                 try:
                     best_index, rating = await self.get_best_card_index(message)
                 except Exception as e:
-                    logging.error(f"OCR machine broke personal!!!!! {e}")
-                    logging.error(traceback.format_exc())
+                    logging.exception(f"OCR machine broke personal!!!!! {e}")
 
                 if best_index == -1:
                     logging.error(f"Could not process image for message: {message_content}, selecting random index")
@@ -509,8 +572,7 @@ class MyClient(discord.Client):
                     try:
                         best_index, rating = await self.get_best_card_index(message)
                     except Exception as e:
-                        logging.error(f"OCR machine broke public {e}")
-                        logging.error(traceback.format_exc())
+                        logging.exception(f"OCR machine broke public {e}")
                         return
                     click_delay = random.uniform(0.55, 1.5)
 
@@ -545,37 +607,111 @@ class MyClient(discord.Client):
                 # Get fruits
                 await self.check_fruit_in_public_message(message, waited_for_edit, check_for_message_button_edit)
 
+    async def check_dating_solution(self, message: discord.Message, check_for_first_button_enabled_edit):
+
+        if message.channel.id != DATING_CHANNEL:
+            return
+        
+        if message.author.id == KOIBOT_ID:
+            if len(message.embeds) > 0:
+                if message.embeds[0].description and str(USERID) in message.embeds[0].description and "do you want ring?" in message.embeds[0].description: 
+                    logging.info("click yes for ring")
+                    await asyncio.sleep(random.uniform(0.3, 2))
+                    yes_button = message.components[0].children[1]
+                    await yes_button.click()
+                    await asyncio.sleep(random.uniform(0.3, 2))
+                    try:
+                        await self.wait_for("message_edit", check=check_for_first_button_enabled_edit, timeout=5)
+                    except TimeoutError as e:
+                        logging.error(f"Wait for date solution timed out {e}")
+            
+            await asyncio.sleep(random.uniform(0.3, 2))
+            if message.author.id == KOIBOT_ID and len(message.embeds) > 0 and DISCORD_USER in message.embeds[0].footer.text:
+                for embed in message.embeds:
+                    if len(embed.fields) > 0:
+                        unclean_path = embed.fields[0].value
+                        path_words = re.findall(
+                            r":\s*(\w+)\s*:", unclean_path
+                        )
+                        best_path = [emoji_map.get(item, None) for item in path_words]
+                        if None in best_path:
+                            logging.error("Could not parse best path properly, returning")
+                            return
+                        logging.info(best_path)
+
+                        # Apply best path to date
+                        if self.last_dating_message == None:
+                            logging.error("Last dating message is None, returning")
+                            return
+                        
+                        async def click_emoji(dating_message, emoji, check_edit):
+                            logging.info(f"Next emoji {emoji}")
+                            if len(dating_message.components) > 0 and len(dating_message.components[0].children) > 0:
+                                for component in dating_message.components:
+                                    for child in component.children:
+                                        if child.emoji.name == emoji:
+                                            await asyncio.sleep(random.uniform(1, 3))
+                                            await child.click()
+                                            try:
+                                                await self.wait_for("message_edit", check=check_edit, timeout=3)
+                                            except TimeoutError as e:
+                                                logging.error(f"Wait for timed out {e}")
+                                            await asyncio.sleep(random.uniform(1, 3))
+                                            return
+                            raise Exception("Could not click next path item")
+
+                        # Try to date
+                        dating_message = await self.get_channel(DATING_CHANNEL).fetch_message(self.last_dating_message)
+                        self.dating = ""
+                        self.last_dating_message = None
+
+                        def check(before, after):
+                            # Check if the message being edited is the same as the one we're tracking
+                            return before.id == dating_message.id and after.id == dating_message.id  and after.edited_at != before.edited_at
+                        
+                        logging.info("Date Start")
+                        for emoji in best_path:
+                            await click_emoji(dating_message, emoji, check)
+
+    async def apply_dating_solution(self, message: discord.Message):
+        
+        if message.channel.id == DATING_CHANNEL and message.author.id == KARUTA_ID:
+            if str(USERID) in message.embeds[0].description:
+                self.last_dating_message = message.id
+
 
     async def on_message_helper(self, message: discord.Message):
 
         # Edit check helper
-        def check_for_message_button_edit(before, after):
+        def check_for_first_button_enabled_edit(before, after):
             if len(after.components) == 0:
                 return False
             if before.id == message.id and not after.components[0].children[0].disabled:
                 logging.debug("Message edit found")
                 try:
-                    self.buttons = after.components[0].children
                     return True
                 except IndexError:
-                    logging.error(f"Index error")
+                    logging.exception(f"Index error")
             else:
                 return False
+
 
         # Message in channel
         message_content = message.content
         message_uuid = message.author.id
         try: 
-            self.check_for_dm(message)
+            await self.check_for_dm(message, check_for_first_button_enabled_edit)
             self.check_fruit_grab(message_uuid, message_content)
             self.check_for_evasion(message_uuid, message_content)
             self.check_for_card_grab(message_uuid, message_content)
             self.check_for_cooldown_warning(message_uuid, message_content)
-            await self.check_personal_drop(message_uuid, message_content, message, check_for_message_button_edit)
+            await self.check_personal_drop(message_uuid, message_content, message, check_for_first_button_enabled_edit)
             self.check_for_generosity(message_uuid, message_content)
-            await self.check_public_drop(message_uuid, message_content, message, check_for_message_button_edit)
+            await self.check_public_drop(message_uuid, message_content, message, check_for_first_button_enabled_edit)
+            await self.check_dating_solution(message, check_for_first_button_enabled_edit)
+            await self.apply_dating_solution(message)
         except Exception as e:
-            logging.error(f"Something went wrong processing message {e}")
+            logging.exception(f"Something went wrong processing message {e}")
 
     async def get_best_card_index(self, message):
         start = time.time()
@@ -594,7 +730,7 @@ class MyClient(discord.Client):
             processedImgResultList = await preProcessImg(tempPath, dropsPath, ocrPath, cardnum)
 
         except Exception as e:
-            logging.error(f"Something went wrong in processing, {e}, {attachements_url}")
+            logging.exception(f"Something went wrong in processing, {e}, {attachements_url}")
         
         if len(processedImgResultList) == 0:
             return -1

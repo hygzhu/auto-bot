@@ -197,15 +197,15 @@ class MyClient(discord.Client):
                 # Using shared vars here - need lock
                 async with self.lock:
 
-                    if self.visit and self.dateable_codes:
-                        logging.info(f"sending visit")
-                        code = self.dateable_codes.pop()
-                        await self.send_msg(dm, f"kvi {code}")
-                        self.visit = False
+                    # if self.visit and self.dateable_codes:
+                    #     logging.info(f"sending visit")
+                    #     code = self.dateable_codes.pop()
+                    #     await self.send_msg(dm, f"kvi {code}")
+                    #     self.visit = False
 
-                    if self.dating:
-                        self.dating = False
-                        await self.send_msg(dating_channel, f"kvi")
+                    # if self.dating:
+                    #     self.dating = False
+                    #     await self.send_msg(dating_channel, f"kvi")
 
                     diff= datetime.now().timestamp() - self.timestamp_for_grab_available
                     if diff > 0:
@@ -250,6 +250,10 @@ class MyClient(discord.Client):
                 if "Your drop is now off cooldown" in  message.content:
                     self.drop = True
                     logging.info("drop off cd!")
+
+                if "You can now visit another character." in  message.content:
+                    self.visit = True
+                    logging.info("visit off cd!")
                 return
             
             #Run kevent reply - refresh fruit count
@@ -321,33 +325,33 @@ class MyClient(discord.Client):
                         self.dateable_codes.append(code)
                 logging.info(f"Dateable: {self.dateable_codes}")
 
-            # kvi check
-            if len(message.embeds) > 0 and "You can switch which character" in message.embeds[0].description:
-                if len(message.components) > 0 and len(message.components[0].children) > 0 and "Visit" in  message.components[0].children[0].label:
-                    logging.info("Visiting char")
-                    await asyncio.sleep(random.uniform(0.3, 2))
-                    visit_button = message.components[0].children[0]
-                    await visit_button.click()
-                    await asyncio.sleep(random.uniform(0.3, 2))
-                    try:
-                        await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
-                    except TimeoutError as e:
-                        logging.error(f"Wait for visit button timed out {e}")
-                    if len(message.components) > 0 and len(message.components[0].children) > 3:
-                        logging.info("click date")
-                        date_button = message.components[0].children[2]
-                        await date_button.click()
-                        await asyncio.sleep(random.uniform(0.3, 2))
-                        try:
-                            await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
-                        except TimeoutError as e:
-                            logging.error(f"Wait for visit button timed out {e}")
-                        if len(message.components) > 0 and len(message.components[0].children) > 0:
-                            logging.info("click yes to date")
-                            yes_button = message.components[0].children[0]
-                            await yes_button.click()
-                            await asyncio.sleep(random.uniform(0.3, 2))
-                            self.dating = True
+            # # kvi check
+            # if len(message.embeds) > 0 and "You can switch which character" in message.embeds[0].description:
+            #     if len(message.components) > 0 and len(message.components[0].children) > 0 and "Visit" in  message.components[0].children[0].label:
+            #         logging.info("Visiting char")
+            #         await asyncio.sleep(random.uniform(0.3, 2))
+            #         visit_button = message.components[0].children[0]
+            #         await visit_button.click()
+            #         await asyncio.sleep(random.uniform(0.3, 2))
+            #         try:
+            #             await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
+            #         except TimeoutError as e:
+            #             logging.error(f"Wait for visit button timed out {e}")
+            #         if len(message.components) > 0 and len(message.components[0].children) > 3:
+            #             logging.info("click date")
+            #             date_button = message.components[0].children[2]
+            #             await date_button.click()
+            #             await asyncio.sleep(random.uniform(0.3, 2))
+            #             try:
+            #                 await self.wait_for("message_edit", check=check_for_message_button_edit, timeout=3)
+            #             except TimeoutError as e:
+            #                 logging.error(f"Wait for visit button timed out {e}")
+            #             if len(message.components) > 0 and len(message.components[0].children) > 0:
+            #                 logging.info("click yes to date")
+            #                 yes_button = message.components[0].children[0]
+            #                 await yes_button.click()
+            #                 await asyncio.sleep(random.uniform(0.3, 2))
+            #                 self.dating = True
 
 
 

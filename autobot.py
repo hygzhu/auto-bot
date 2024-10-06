@@ -96,7 +96,7 @@ class MyClient(discord.Client):
         self.vote = False
         self.work = False
         self.visit = False
-        self.dating = ""
+        self.dating = False
         self.last_dating_message = None
         self.evasion = 0 # Is an int since evasion can stack culmulatively
         self.generosity = False
@@ -202,11 +202,10 @@ class MyClient(discord.Client):
                         code = self.dateable_codes.pop()
                         await self.send_msg(dm, f"kvi {code}")
                         self.visit = False
-                        self.dating = code
 
-                    if self.dating != "":
+                    if self.dating:
+                        self.dating = False
                         await self.send_msg(dating_channel, f"kvi")
-                        self.dating = ""
 
                     diff= datetime.now().timestamp() - self.timestamp_for_grab_available
                     if diff > 0:
@@ -348,6 +347,7 @@ class MyClient(discord.Client):
                             yes_button = message.components[0].children[0]
                             await yes_button.click()
                             await asyncio.sleep(random.uniform(0.3, 2))
+                            self.dating = True
 
 
 

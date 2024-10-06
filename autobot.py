@@ -626,7 +626,7 @@ class MyClient(discord.Client):
                         logging.error(f"Wait for date solution timed out {e}")
             
             await asyncio.sleep(random.uniform(0.3, 2))
-            if message.author.id == KOIBOT_ID and len(message.embeds) > 0 and DISCORD_USER in message.embeds[0].footer.text:
+            if message.author.id == KOIBOT_ID and len(message.embeds) > 0 and message.embeds[0].footer and message.embeds[0].footer.text and DISCORD_USER in message.embeds[0].footer.text:
                 for embed in message.embeds:
                     if len(embed.fields) > 0:
                         unclean_path = embed.fields[0].value
@@ -644,13 +644,17 @@ class MyClient(discord.Client):
                             logging.error("Last dating message is None, returning")
                             return
                         
-                        async def click_emoji(dating_message, emoji, check_edit):
+                        async def click_emoji(dating_message: discord.Message, emoji, check_edit):
                             logging.info(f"Next emoji {emoji}")
                             if len(dating_message.components) > 0 and len(dating_message.components[0].children) > 0:
                                 for component in dating_message.components:
                                     for child in component.children:
+                                        logging.info(f"Possible button: {child} {child.emoji} {child.emoji.name}")
                                         if child.emoji.name == emoji:
                                             await asyncio.sleep(random.uniform(1, 3))
+                                            while child.disabled:
+                                                logging.info("Button disabled, waiting")
+                                                await asyncio.sleep(random.uniform(1, 3))
                                             await child.click()
                                             try:
                                                 await self.wait_for("message_edit", check=check_edit, timeout=3)

@@ -142,6 +142,7 @@ class MyClient(discord.Client):
 
     async def send_msg(self, channel: discord.TextChannel, msg: str):
         logging.info(f"Sending message {msg} to channel {channel}")
+        await asyncio.sleep(random.uniform(2, 5))
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
         await channel.send(msg)
@@ -175,6 +176,8 @@ class MyClient(discord.Client):
             self.sleeping = False
             self.drop = True
             self.grab = True
+            self.visit = True
+            self.dateable_codes = []
         self.sleeping = False
 
     async def on_ready(self):
@@ -254,11 +257,12 @@ class MyClient(discord.Client):
                 if "You can now visit another character." in  message.content:
                     self.visit = True
                     logging.info("visit off cd!")
-                    logging.info(f"sending kafl")
-                    await asyncio.sleep(random.uniform(3, 5))
-                    dm = self.get_channel(DM_CHANNEL)
-                    await self.send_msg(dm, "kafl")
-                    await asyncio.sleep(random.uniform(3, 5))
+                    if len(self.dateable_codes) == 0:
+                        logging.info(f"sending kafl")
+                        await asyncio.sleep(random.uniform(3, 5))
+                        dm = self.get_channel(DM_CHANNEL)
+                        await self.send_msg(dm, "kafl")
+                        await asyncio.sleep(random.uniform(3, 5))
                 return
             
             #Run kevent reply - refresh fruit count
@@ -392,6 +396,7 @@ class MyClient(discord.Client):
         if message_uuid == KARUTA_ID and f"<@{str(USERID)}>, your **Evasion** blessing has activated" in message_content:
             logging.info("Evasion activated")
             self.grab = True
+            self.timestamp_for_grab_available = datetime.now().timestamp() - 10
             self.evasion += 1
 
     def check_for_cooldown_warning(self, message_uuid, message_content):

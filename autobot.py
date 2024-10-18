@@ -77,6 +77,7 @@ class MyClient(discord.Client):
     def __init__(self, account_name, **kwargs):
         super().__init__(**kwargs)
         self.account_name = account_name
+        self.logger = self._create_instance_logger(account_name)
         self.user_id = config_get_value(account_name, "id")
         self.dm_channel = config_get_value(account_name, "dm_channel")
         self.drop_channels = config_get_value(account_name, "drop_channels")
@@ -101,29 +102,71 @@ class MyClient(discord.Client):
         self.candy = 0
         self.sleeping = False
         self.lock = asyncio.Lock()
-        self.last_dropped_channel = random.choice(self.drop_channels)
         self.dropped_cards_awaiting_pickup = False
         self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
         self.dateable_codes = []
 
+    def _create_instance_logger(self, account_name):
+        # Create a logger specific to this instance
+        logger = logging.getLogger(account_name)
+
+        # Create a unique log filename for this instance
+        log_filename = f"output.log.{account_name}.{datetime.now().timestamp()}"
+
+        # Configure the logger with StreamHandler and FileHandler
+        logger = logging.getLogger(account_name)
+        logger.setLevel(logging.INFO)
+
+        # Create a formatter with timezone-aware timestamps
+        formatter = logging.Formatter(
+            fmt="%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+
+        tz = pytz.timezone("US/Eastern")  # UTC, Asia/Shanghai,
+        # Override the time converter for timezone-aware logging
+        formatter.converter = lambda *args: datetime.now(tz).timetuple()
+
+        # StreamHandler (for console output)
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+
+        # FileHandler (for file output)
+        file_handler = logging.FileHandler(log_filename, mode="w")
+        file_handler.setFormatter(formatter)
+
+        # Add handlers to the logger
+        logger.addHandler(stream_handler)
+        logger.addHandler(file_handler)
+
+        # Disable propagation to avoid duplicate logs
+        logger.propagate = False
+
+        return logger
+
+    def update_config_values(self):
+        self.logger.info("Updating config values")
+        account_name = self.account_name
+        self.user_id = config_get_value(account_name, "id")
+        self.dm_channel = config_get_value(account_name, "dm_channel")
+        self.drop_channels = config_get_value(account_name, "drop_channels")
+        self.follow_channels = config_get_value(account_name, "follow_channels")
+        self.visit_card_codes = config_get_value(account_name, "visit_card_codes")
+        self.dating_channel = config_get_value(account_name, "dating_channel")
+        self.max_fruits = config_get_value(account_name, "max_fruits")
+        self.discord_username = config_get_value(account_name, "discord_username")
+        self.seconds_for_grab = config_get_value(account_name, "seconds_for_grab")
+        self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
+
     async def drop_card(self):
 
         self.drop = False
-
-        new_channels = list(set(self.drop_channels) - set([self.last_dropped_channel]))
-        selected_channel = random.choice(new_channels)
-
-        # TODO clan + public override
-        selected_channel = random.choice(
-            [1006000542578901052, selected_channel] + ([1006000542578901052] * 4)
-        )
-
-        self.last_dropped_channel = selected_channel
+        selected_channel = random.choice(self.drop_channels)
         channel = self.get_channel(selected_channel)
 
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
-        logging.info(
+        self.logger.info(
             f"-----------------------Dropping in channel {selected_channel}-----------------------"
         )
         await channel.send("kd")
@@ -131,21 +174,21 @@ class MyClient(discord.Client):
 
     async def add_short_delay(self):
         short_delay = random.uniform(3, 8)
-        logging.debug(f"Creating short delay of {short_delay}")
+        self.logger.debug(f"Creating short delay of {short_delay}")
         await asyncio.sleep(short_delay)
 
     async def check_cooldowns(self, dm):
-        logging.info("Checking cooldowns")
+        self.logger.info("Checking cooldowns")
         async with dm.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
-        logging.info(
+        self.logger.info(
             f"-----------------------Sending in channel DM-----------------------"
         )
         await dm.send("kcd")
         await asyncio.sleep(random.uniform(2, 5))
 
     async def send_msg(self, channel: discord.TextChannel, msg: str):
-        logging.info(f"Sending message {msg} to channel {channel}")
+        self.logger.info(f"Sending message {msg} to channel {channel}")
         await asyncio.sleep(random.uniform(2, 5))
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.2, 1))
@@ -161,7 +204,7 @@ class MyClient(discord.Client):
         start_hour = random.choice([1, 2])
         end_hour = random.choice([5, 6])
         while is_hour_between(start_hour, end_hour, hour):
-            logging.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
+            self.logger.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
             utc = pytz.utc
             now = datetime.now(tz=utc)
             eastern = pytz.timezone("US/Eastern")
@@ -172,7 +215,7 @@ class MyClient(discord.Client):
             loc_dt = now.astimezone(eastern)
             hour = loc_dt.hour
             sleep_time = random.uniform(1800, 2000)  # Sleep for 30 minutes ish
-            logging.info(f"Hour is {hour} Sleeping for {sleep_time}")
+            self.logger.info(f"Hour is {hour} Sleeping for {sleep_time}")
             self.sleeping = True
             await asyncio.sleep(sleep_time)
         if self.sleeping:
@@ -188,7 +231,7 @@ class MyClient(discord.Client):
         self.sleeping = False
 
     async def on_ready(self):
-        logging.info("Logged on as %s", self.user)
+        self.logger.info("Logged on as %s", self.user)
         # Dm setup
         dm = self.get_channel(self.dm_channel)
         dating_channel = self.get_channel(self.dating_channel)
@@ -197,21 +240,27 @@ class MyClient(discord.Client):
 
         # Auto drop
         while True:
+
+            # Occasionally update config
+            if random.randint(1, 10) == 5:
+                self.update_config_values()
+
             diff = datetime.now().timestamp() - self.timestamp_for_grab_available
-            logging.info(
+            self.logger.info(
                 f"g:{self.grab} d:{self.drop} f: {self.fruits} c: {self.candy} grab_cd: {diff}"
             )
             await asyncio.sleep(random.uniform(5, 10))
             # Sleeping time
             async with self.lock:
                 await self.maybe_go_to_sleep()
+
             # Do something
             try:
                 # Using shared vars here - need lock
                 async with self.lock:
 
                     if self.visit and self.dateable_codes:
-                        logging.info(f"sending visit")
+                        self.logger.info(f"sending visit")
                         code = self.dateable_codes.pop()
                         await self.send_msg(dm, f"kvi {code}")
                         self.visit = False
@@ -224,20 +273,20 @@ class MyClient(discord.Client):
                         datetime.now().timestamp() - self.timestamp_for_grab_available
                     )
                     if diff > 0:
-                        logging.info(f"Grab is available now, diff={diff}")
+                        self.logger.info(f"Grab is available now, diff={diff}")
                         self.grab = True
                         self.timestamp_for_grab_available = (
                             datetime.now().timestamp() + 500000000000
                         )
                     if self.grab and self.drop:
-                        logging.info(
+                        self.logger.info(
                             f"-----------------------Adding delay before drop-----------------------"
                         )
                         await asyncio.sleep(random.uniform(2, 10))
-                        logging.info(f"Try to drop")
+                        self.logger.info(f"Try to drop")
                         await self.drop_card()
             except Exception as e:
-                logging.exception(e)
+                self.logger.exception(e)
 
     async def on_message(self, message: discord.Message):
 
@@ -248,35 +297,35 @@ class MyClient(discord.Client):
         if message.author.id != KARUTA_ID and message.author.id != KOIBOT_ID:
             return
         if self.sleeping:
-            logging.info("I'm sleeping!")
+            self.logger.info("I'm sleeping!")
             return
 
         async with self.lock:
-            logging.debug("Processing new message!")
+            self.logger.debug("Processing new message!")
             # process each message atomically -> no race conditions
             await self.on_message_helper(message)
-        logging.debug("Done new message!")
+        self.logger.debug("Done new message!")
 
     async def check_for_dm(
         self, message: discord.Message, check_for_message_button_edit
     ):
         # Dm messages
         if not message.guild and message.author.id == KARUTA_ID:
-            logging.info("Got dm")
+            self.logger.info("Got dm")
             if len(message.embeds) == 0:
                 if "Your grab is now off cooldown" in message.content:
                     self.grab = True
-                    logging.info("Grab off cd!")
+                    self.logger.info("Grab off cd!")
 
                 if "Your drop is now off cooldown" in message.content:
                     self.drop = True
-                    logging.info("drop off cd!")
+                    self.logger.info("drop off cd!")
 
                 if "You can now visit another character." in message.content:
                     self.visit = True
-                    logging.info("visit off cd!")
+                    self.logger.info("visit off cd!")
                     if len(self.dateable_codes) == 0:
-                        logging.info(f"sending kafl")
+                        self.logger.info(f"sending kafl")
                         await asyncio.sleep(random.uniform(3, 5))
                         dm = self.get_channel(self.dm_channel)
                         await self.send_msg(dm, "kafl")
@@ -289,7 +338,7 @@ class MyClient(discord.Client):
                 and "Gather fruit pieces to place on the board below."
                 in message.embeds[0].description
             ):
-                logging.info("Refreshing fruit")
+                self.logger.info("Refreshing fruit")
                 self.fruits = 0
                 return
             # Run kevent reply - refresh candy count
@@ -298,7 +347,7 @@ class MyClient(discord.Client):
                 and "if you want one of my frames for your silly little"
                 in message.embeds[0].description
             ):
-                logging.info("Refreshing candy")
+                self.logger.info("Refreshing candy")
                 self.candy = 0
                 return
 
@@ -307,7 +356,7 @@ class MyClient(discord.Client):
                 len(message.embeds) > 0
                 and "Showing cooldowns" in message.embeds[0].description
             ):
-                logging.info("Getting cooldowns")
+                self.logger.info("Getting cooldowns")
                 message_tokens = message.embeds[0].description.split("\n")
                 grab_status = message_tokens[-2]
                 drop_status = message_tokens[-1]
@@ -334,7 +383,7 @@ class MyClient(discord.Client):
                         seconds_for_drop = int(val)
                     drop_time = drop_status.split("`")[1]
 
-                logging.info(f"Grab: {self.grab}, Drop: {self.drop}")
+                self.logger.info(f"Grab: {self.grab}, Drop: {self.drop}")
 
             # krm check
             if (
@@ -342,7 +391,7 @@ class MyClient(discord.Client):
                 and message.embeds[0].author
                 and "Reminders" in message.embeds[0].author.name
             ):
-                logging.info("Getting reminders")
+                self.logger.info("Getting reminders")
                 message_tokens = message.embeds[0].description.split("\n")
                 daily_status = message_tokens[-6]
                 vote_status = message_tokens[-5]
@@ -357,7 +406,7 @@ class MyClient(discord.Client):
                 self.work = "is ready" in work_staus
                 self.visit = "is ready" in visit_status
 
-                logging.info(
+                self.logger.info(
                     f"\nDaily:{self.daily}\nVote:{self.vote}\nGrab:{self.grab}\n Drop:{self.drop}\nWork:{self.work}\nVisit:{self.visit}"
                 )
 
@@ -377,7 +426,7 @@ class MyClient(discord.Client):
                             break
                     if ":greencar:" in line and code != "":
                         self.dateable_codes.append(code)
-                logging.info(f"Dateable: {self.dateable_codes}")
+                self.logger.info(f"Dateable: {self.dateable_codes}")
 
             # kvi check
             if (
@@ -389,7 +438,7 @@ class MyClient(discord.Client):
                     and len(message.components[0].children) > 0
                     and "Visit" in message.components[0].children[0].label
                 ):
-                    logging.info("Visiting char")
+                    self.logger.info("Visiting char")
                     await asyncio.sleep(random.uniform(0.3, 2))
                     visit_button = message.components[0].children[0]
                     await visit_button.click()
@@ -401,12 +450,12 @@ class MyClient(discord.Client):
                             timeout=3,
                         )
                     except TimeoutError as e:
-                        logging.error(f"Wait for visit button timed out {e}")
+                        self.logger.error(f"Wait for visit button timed out {e}")
                     if (
                         len(message.components) > 0
                         and len(message.components[0].children) > 3
                     ):
-                        logging.info("click date")
+                        self.logger.info("click date")
                         date_button = message.components[0].children[2]
                         await date_button.click()
                         await asyncio.sleep(random.uniform(0.3, 2))
@@ -417,12 +466,12 @@ class MyClient(discord.Client):
                                 timeout=3,
                             )
                         except TimeoutError as e:
-                            logging.error(f"Wait for visit button timed out {e}")
+                            self.logger.error(f"Wait for visit button timed out {e}")
                         if (
                             len(message.components) > 0
                             and len(message.components[0].children) > 0
                         ):
-                            logging.info("click yes to date")
+                            self.logger.info("click yes to date")
                             yes_button = message.components[0].children[0]
                             await yes_button.click()
                             await asyncio.sleep(random.uniform(0.3, 2))
@@ -435,7 +484,7 @@ class MyClient(discord.Client):
             and f"<@{str(self.user_id)}>, you snatched" in message_content
         ):
             self.candy += 1
-            logging.info(f"got a candy {self.candy}")
+            self.logger.info(f"got a candy {self.candy}")
 
     def check_fruit_grab(self, message_uuid, message_content):
         # karuta message for fruit
@@ -444,14 +493,14 @@ class MyClient(discord.Client):
             and f"<@{str(self.user_id)}>, you gathered a fruit piece" in message_content
         ):
             self.fruits += 1
-            logging.info(f"got a fruit {self.fruits}")
+            self.logger.info(f"got a fruit {self.fruits}")
 
         if (
             message_uuid == KARUTA_ID
             and f"<@{str(self.user_id)}>, you have too many unused" in message_content
         ):
             self.fruits = 10000000
-            logging.info(f"FRUIT WARNING DO NOT GET MORE FRUITS")
+            self.logger.info(f"FRUIT WARNING DO NOT GET MORE FRUITS")
 
     def check_for_card_grab(self, message_uuid, message_content):
         # took a card - grab goes on cd
@@ -459,15 +508,15 @@ class MyClient(discord.Client):
             f"<@{str(self.user_id)}> took the" in message_content
             or f"<@{str(self.user_id)}> fought off" in message_content
         ):
-            logging.info(f"Took a card: message {message_content}")
+            self.logger.info(f"Took a card: message {message_content}")
 
             if f"<@{str(self.user_id)}> fought off" in message_content:
-                logging.info(
+                self.logger.info(
                     "!!!!!!!!!!!!!!!!!!!!!!!!!YOU FOUGHT AND WON!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
                 )
 
             if self.evasion:
-                logging.info("evasion used")
+                self.logger.info("evasion used")
                 self.evasion -= 1
             else:
                 self.grab = False
@@ -476,7 +525,7 @@ class MyClient(discord.Client):
                     + self.seconds_for_grab
                     + random.randint(2, 10)
                 )
-                logging.info(f"Grab  set to false")
+                self.logger.info(f"Grab  set to false")
             self.dropped_cards_awaiting_pickup = False
 
     def check_for_evasion(self, message_uuid, message_content):
@@ -486,7 +535,7 @@ class MyClient(discord.Client):
             and f"<@{str(self.user_id)}>, your **Evasion** blessing has activated"
             in message_content
         ):
-            logging.info("Evasion activated")
+            self.logger.info("Evasion activated")
             self.grab = True
             self.timestamp_for_grab_available = datetime.now().timestamp() - 10
             self.evasion += 1
@@ -506,7 +555,7 @@ class MyClient(discord.Client):
                 else:
                     seconds_for_grab = int(val)
                 grab_delay = seconds_for_grab + random.uniform(30, 100)
-                logging.info(f"Got grab warning")
+                self.logger.info(f"Got grab warning")
                 self.grab = False
                 self.timestamp_for_grab_available = (
                     datetime.now().timestamp() + grab_delay
@@ -522,48 +571,45 @@ class MyClient(discord.Client):
                 else:
                     seconds_for_drop = int(val)
                 drop_delay = seconds_for_drop + random.uniform(30, 100)
-                logging.info(f"Got drop warning - updating drop cd to false")
+                self.logger.info(f"Got drop warning - updating drop cd to false")
                 self.drop = False
 
     async def check_fruit_in_private_message(self, message):
         # Get fruits after
         if message.components[0].children[-1].emoji.name == "🍉":
-            logging.info("fruit detected")
+            self.logger.info("fruit detected")
             if self.fruits < self.max_fruits:
-                logging.info("grabbing fruit")
+                self.logger.info("grabbing fruit")
                 click_delay = random.uniform(0.55, 1)
                 await asyncio.sleep(click_delay)
                 fruit_button = message.components[0].children[-1]
                 await fruit_button.click()
                 await asyncio.sleep(random.uniform(0.3, 0.6))
-                logging.info(
+                self.logger.info(
                     f"-----------------------PRIVATE FRUIT CLICK in {message.channel.id}-----------------------------------"
                 )
             else:
-                logging.info("skipping fruit")
+                self.logger.info("skipping fruit")
 
     async def check_candy_in_private_message(self, message):
         # Get fruits after
         if message.components[0].children[-1].emoji.name == "🍬":
-            logging.info("candy detected")
-            if self.candy < MAX_CANDY:
-                logging.info("grabbing candy")
-                click_delay = random.uniform(0.55, 1)
-                await asyncio.sleep(click_delay)
-                fruit_button = message.components[0].children[-1]
-                await fruit_button.click()
-                await asyncio.sleep(random.uniform(0.3, 0.6))
-                logging.info(
-                    f"-----------------------PRIVATE CANDY CLICK in {message.channel.id}-----------------------------------"
-                )
-            else:
-                logging.info("skipping candy")
+            self.logger.info("candy detected")
+            self.logger.info("grabbing candy")
+            click_delay = random.uniform(0.55, 1)
+            await asyncio.sleep(click_delay)
+            fruit_button = message.components[0].children[-1]
+            await fruit_button.click()
+            await asyncio.sleep(random.uniform(0.3, 0.6))
+            self.logger.info(
+                f"-----------------------PRIVATE CANDY CLICK in {message.channel.id}-----------------------------------"
+            )
 
     async def check_candy_in_public_message(
         self, message: discord.Message, waited_for_edit, check_for_message_button_edit
     ):
         if message.components[0].children[-1].emoji.name == "🍬":
-            logging.info("candy detected - public drop")
+            self.logger.info("candy detected - public drop")
 
             if not waited_for_edit:
                 try:
@@ -571,7 +617,7 @@ class MyClient(discord.Client):
                         "message_edit", check=check_for_message_button_edit, timeout=3
                     )
                 except TimeoutError as e:
-                    logging.error(f"Wait for timed out {e}")
+                    self.logger.error(f"Wait for timed out {e}")
                 waited_for_edit = True
 
             random_get_fruit = random.choice(
@@ -581,27 +627,24 @@ class MyClient(discord.Client):
                 random_get_fruit = True
 
             if random_get_fruit:
-                if self.candy < MAX_CANDY:
-                    click_delay = random.uniform(0.55, 1.5)
-                    await asyncio.sleep(click_delay)
-                    fruit_button = message.components[0].children[-1]
-                    await fruit_button.click()
-                    logging.info(
-                        f"-----------------------PUBLIC candy CLICK in {message.channel.id}-----------------------------------"
-                    )
-                    await asyncio.sleep(click_delay)
-                    logging.debug("Tried to grab fruit")
-                    await asyncio.sleep(random.uniform(0.3, 0.6))
-                else:
-                    logging.info("skipping candy, we at max")
+                click_delay = random.uniform(0.55, 1.5)
+                await asyncio.sleep(click_delay)
+                fruit_button = message.components[0].children[-1]
+                await fruit_button.click()
+                self.logger.info(
+                    f"-----------------------PUBLIC candy CLICK in {message.channel.id}-----------------------------------"
+                )
+                await asyncio.sleep(click_delay)
+                self.logger.debug("Tried to grab fruit")
+                await asyncio.sleep(random.uniform(0.3, 0.6))
             else:
-                logging.info("skipping candy, random says no")
+                self.logger.info("skipping candy, random says no")
 
     async def check_fruit_in_public_message(
         self, message: discord.Message, waited_for_edit, check_for_message_button_edit
     ):
         if message.components[0].children[-1].emoji.name == "🍉":
-            logging.info("fruit detected - public drop")
+            self.logger.info("fruit detected - public drop")
 
             if not waited_for_edit:
                 try:
@@ -609,7 +652,7 @@ class MyClient(discord.Client):
                         "message_edit", check=check_for_message_button_edit, timeout=3
                     )
                 except TimeoutError as e:
-                    logging.error(f"Wait for timed out {e}")
+                    self.logger.error(f"Wait for timed out {e}")
                 waited_for_edit = True
 
             random_get_fruit = random.choice(
@@ -624,27 +667,27 @@ class MyClient(discord.Client):
                     await asyncio.sleep(click_delay)
                     fruit_button = message.components[0].children[-1]
                     await fruit_button.click()
-                    logging.info(
+                    self.logger.info(
                         f"-----------------------PUBLIC FRUIT CLICK in {message.channel.id}-----------------------------------"
                     )
                     await asyncio.sleep(click_delay)
-                    logging.debug("Tried to grab fruit")
+                    self.logger.debug("Tried to grab fruit")
                     await asyncio.sleep(random.uniform(0.3, 0.6))
                 else:
-                    logging.info("skipping fruit, we at max")
+                    self.logger.info("skipping fruit, we at max")
             else:
-                logging.info("skipping fruit, random says no")
+                self.logger.info("skipping fruit, random says no")
 
     async def click_card_button(self, message, best_index, click_delay):
         new_button = message.components[0].children[best_index]
         await asyncio.sleep(click_delay)
-        logging.info(f"Clicking button {best_index+1} after delay of {click_delay}")
+        self.logger.info(f"Clicking button {best_index+1} after delay of {click_delay}")
         self.grab = False
         self.timestamp_for_grab_available = (
             datetime.now().timestamp() + 60 + random.randint(2, 10)
         )
         await new_button.click()
-        logging.info(
+        self.logger.info(
             f"-----------------------CLICK BUTTON in {message.channel.id}-----------------------------------"
         )
         await asyncio.sleep(random.uniform(0.3, 0.6))
@@ -661,17 +704,17 @@ class MyClient(discord.Client):
             components = message.components
             rating = 0
             if len(components) > 0:
-                logging.info(
+                self.logger.info(
                     "-----------------------Personal drop-----------------------"
                 )
                 best_index = random.randint(0, 2)
                 try:
-                    best_index, rating = await self.get_best_card_index(message)
+                    best_index, rating = await get_best_card_index(message)
                 except Exception as e:
-                    logging.exception(f"OCR machine broke personal!!!!! {e}")
+                    self.logger.exception(f"OCR machine broke personal!!!!! {e}")
 
                 if best_index == -1:
-                    logging.error(
+                    self.logger.error(
                         f"Could not process image for message: {message_content}, selecting random index"
                     )
                     best_index = random.randint(0, 2)
@@ -681,22 +724,22 @@ class MyClient(discord.Client):
                         "message_edit", check=check_for_message_button_edit, timeout=3
                     )
                 except TimeoutError as e:
-                    logging.error(f"Wait for timed out {e}")
+                    self.logger.error(f"Wait for timed out {e}")
                 click_delay = random.uniform(0.2, 1.2)
 
                 if self.generosity:
-                    logging.info(f"We have generosity")
+                    self.logger.info(f"We have generosity")
                     self.drop = True
                     self.generosity = False
                     # skip grab if garbage
                     if rating >= 1:
                         click_delay = random.uniform(0.8, 2)
-                        logging.info(f"Rating decent {click_delay}")
+                        self.logger.info(f"Rating decent {click_delay}")
                         if rating >= 2:
-                            logging.info(f"fast {click_delay}")
+                            self.logger.info(f"fast {click_delay}")
                             click_delay = random.uniform(0.4, 0.8)
                         if rating >= 3:
-                            logging.info(f"fastest {click_delay}")
+                            self.logger.info(f"fastest {click_delay}")
                             click_delay = random.uniform(0.2, 0.3)
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
@@ -704,21 +747,21 @@ class MyClient(discord.Client):
                         await self.check_fruit_in_private_message(message)
                         await self.check_candy_in_private_message(message)
                     else:
-                        logging.info("Rating garbage, skip due to generosity")
+                        self.logger.info("Rating garbage, skip due to generosity")
                         await self.check_fruit_in_private_message(message)
                         await self.check_candy_in_private_message(message)
                 else:
 
-                    logging.info(f"Dont have generosity")
+                    self.logger.info(f"Dont have generosity")
 
                     if rating >= 2:
                         click_delay = random.uniform(0.3, 1)
                         if rating >= 4:
                             click_delay = random.uniform(0.2, 0.3)
-                            logging.info(f" fast {click_delay}")
+                            self.logger.info(f" fast {click_delay}")
                         else:
                             click_delay = random.uniform(0.3, 1)
-                            logging.info(f"ok speed {click_delay}")
+                            self.logger.info(f"ok speed {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
                         await self.check_fruit_in_private_message(message)
@@ -731,7 +774,7 @@ class MyClient(discord.Client):
                         if rating < 1:
                             click_delay = random.uniform(4, 10)
 
-                        logging.info(f"Rating too low slow {click_delay}")
+                        self.logger.info(f"Rating too low slow {click_delay}")
                         await self.click_card_button(message, best_index, click_delay)
                         self.dropped_cards_awaiting_pickup = False
             self.dropped_cards_awaiting_pickup = False
@@ -744,7 +787,7 @@ class MyClient(discord.Client):
             in message_content
         ):
             self.generosity = True
-            logging.info(f"Generosity activated")
+            self.logger.info(f"Generosity activated")
 
     async def check_public_drop(
         self,
@@ -755,14 +798,14 @@ class MyClient(discord.Client):
     ):
 
         if self.dropped_cards_awaiting_pickup:
-            logging.info(f"Personal drop awaiting pickup")
+            self.logger.info(f"Personal drop awaiting pickup")
             return
 
         if (
             message_uuid == KARUTA_ID
             and "since this server is currently active" in message.content
         ):
-            logging.debug("Got message from public drop")
+            self.logger.debug("Got message from public drop")
             if len(message.attachments) <= 0:
                 return
             components = message.components
@@ -772,7 +815,7 @@ class MyClient(discord.Client):
             if self.grab and not self.drop:
                 if len(components) > 0:
 
-                    logging.info(
+                    self.logger.info(
                         f"Analyzing message id={message.id} guild={message.channel.id}"
                     )
 
@@ -780,24 +823,24 @@ class MyClient(discord.Client):
                     rating = 0
                     best_index = random.randint(0, len(components) - 1)
                     try:
-                        best_index, rating = await self.get_best_card_index(message)
+                        best_index, rating = await get_best_card_index(message)
                     except Exception as e:
-                        logging.exception(f"OCR machine broke public {e}")
+                        self.logger.exception(f"OCR machine broke public {e}")
                         return
                     click_delay = random.uniform(0.55, 1.5)
 
                     if best_index == -1:
-                        logging.error(
+                        self.logger.error(
                             f"Could not process image for message: {message_content}"
                         )
                         return
 
                     if rating >= 2:
-                        logging.info(f" fast {click_delay}")
+                        self.logger.info(f" fast {click_delay}")
                         click_delay = random.uniform(0.4, 0.8)
                     if rating >= 5:
                         click_delay = random.uniform(0.2, 0.5)
-                        logging.info(f"fastest {click_delay}")
+                        self.logger.info(f"fastest {click_delay}")
                     try:
                         await self.wait_for(
                             "message_edit",
@@ -805,19 +848,19 @@ class MyClient(discord.Client):
                             timeout=3,
                         )
                     except TimeoutError as e:
-                        logging.error(f"Wait for timed out {e}")
+                        self.logger.error(f"Wait for timed out {e}")
                     waited_for_edit = True
-                    logging.debug("Lets try to grab - drop is on cd")
+                    self.logger.debug("Lets try to grab - drop is on cd")
                     if rating < 2:
-                        logging.info("Rating too low, skipping")
+                        self.logger.info("Rating too low, skipping")
                     else:
-                        logging.info("Rating good, lets grab")
+                        self.logger.info("Rating good, lets grab")
                         await self.click_card_button(message, best_index, click_delay)
                         await self.add_short_delay()
                 else:
-                    logging.error(f"No components in drop message, {message}")
+                    self.logger.error(f"No components in drop message, {message}")
             else:
-                logging.debug(f"Cannot grab, on cd")
+                self.logger.debug(f"Cannot grab, on cd")
 
             if len(components) > 0:
                 # Get fruits
@@ -842,7 +885,7 @@ class MyClient(discord.Client):
                     and str(self.user_id) in message.embeds[0].description
                     and "do you want ring?" in message.embeds[0].description
                 ):
-                    logging.info("click yes for ring")
+                    self.logger.info("click yes for ring")
                     await asyncio.sleep(random.uniform(0.3, 2))
                     yes_button = message.components[0].children[1]
                     await yes_button.click()
@@ -854,7 +897,7 @@ class MyClient(discord.Client):
                             timeout=5,
                         )
                     except TimeoutError as e:
-                        logging.error(f"Wait for date solution timed out {e}")
+                        self.logger.error(f"Wait for date solution timed out {e}")
 
             await asyncio.sleep(random.uniform(0.3, 2))
             if (
@@ -870,21 +913,21 @@ class MyClient(discord.Client):
                         path_words = re.findall(r":\s*(\w+)\s*:", unclean_path)
                         best_path = [emoji_map.get(item, None) for item in path_words]
                         if None in best_path:
-                            logging.error(
+                            self.logger.error(
                                 "Could not parse best path properly, returning"
                             )
                             return
-                        logging.info(best_path)
+                        self.logger.info(best_path)
 
                         # Apply best path to date
                         if self.last_dating_message == None:
-                            logging.error("Last dating message is None, returning")
+                            self.logger.error("Last dating message is None, returning")
                             return
 
                         async def click_emoji(
                             dating_message: discord.Message, emoji, check_edit
                         ):
-                            logging.info(f"Next emoji {emoji}")
+                            self.logger.info(f"Next emoji {emoji}")
                             if (
                                 len(dating_message.components) > 0
                                 and len(dating_message.components[0].children) > 0
@@ -894,7 +937,7 @@ class MyClient(discord.Client):
                                         if child.emoji.name == emoji:
                                             await asyncio.sleep(random.uniform(1, 3))
                                             if child.disabled:
-                                                logging.info("Button disabled")
+                                                self.logger.info("Button disabled")
                                                 raise Exception(
                                                     "Could not click next path item"
                                                 )
@@ -906,7 +949,9 @@ class MyClient(discord.Client):
                                                     timeout=3,
                                                 )
                                             except TimeoutError as e:
-                                                logging.error(f"Wait for timed out {e}")
+                                                self.logger.error(
+                                                    f"Wait for timed out {e}"
+                                                )
                                             await asyncio.sleep(random.uniform(1, 3))
                                             return
                             raise Exception("Could not click next path item")
@@ -915,7 +960,7 @@ class MyClient(discord.Client):
                         dating_message_id = self.last_dating_message
                         self.last_dating_message = None
 
-                        logging.info("Date Start")
+                        self.logger.info("Date Start")
                         for emoji in best_path:
                             dating_message = await self.get_channel(
                                 self.dating_channel
@@ -944,11 +989,11 @@ class MyClient(discord.Client):
             if len(after.components) == 0:
                 return False
             if before.id == message.id and not after.components[0].children[0].disabled:
-                logging.debug("Message edit found")
+                self.logger.debug("Message edit found")
                 try:
                     return True
                 except IndexError:
-                    logging.exception(f"Index error")
+                    self.logger.exception(f"Index error")
             else:
                 return False
 
@@ -980,7 +1025,7 @@ class MyClient(discord.Client):
             )
             await self.apply_dating_solution(message)
         except Exception as e:
-            logging.exception(f"Something went wrong processing message {e}")
+            self.logger.exception(f"Something went wrong processing message {e}")
 
 
 async def get_best_card_index(message):

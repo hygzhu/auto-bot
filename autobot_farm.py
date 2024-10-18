@@ -171,13 +171,13 @@ class MyClient(discord.Client):
         # Auto drop
         while True:
 
-            if random.randint(1,600) == 30:
+            if random.randint(1,2000) == 30:
                 logging.info(f"seinding random message")
             
                 # Should send message once every 60 min
                 await self.send_random_message()
 
-            if random.randint(1,600) == 50:
+            if random.randint(1,2000) == 50:
                 logging.info(f"seinding random message")
             
                 # Should randomly send out

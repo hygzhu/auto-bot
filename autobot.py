@@ -17,7 +17,7 @@ import pytz
 import argparse
 import time
 import re
-
+from collections import OrderedDict
 
 tz = pytz.timezone("US/Eastern")  # UTC, Asia/Shanghai, Europe/Berlin
 logging.basicConfig(
@@ -33,6 +33,16 @@ logging.Formatter.converter = lambda *args: datetime.now(tz).timetuple()
 
 KARUTA_ID = 646937666251915264
 KOIBOT_ID = 877620197299748945
+
+OCR_LOCK = asyncio.Lock()
+MESSAGE_ID_TO_OCR_CACHE = OrderedDict()
+
+
+def get_config_data():
+    f = open(args.c)
+    data = json.load(f)
+    return data
+
 
 parser = argparse.ArgumentParser("parser")
 parser.add_argument("-c", required=True, help="Config location", type=str)
@@ -72,6 +82,42 @@ characterDB = queryWishList(
     "SELECT DISTINCT character FROM cardinfo WHERE wishlistcount > 1 ORDER BY wishlistcount desc, series asc, character asc"
 )
 
+from openai import OpenAI
+
+GPT_API_KEY = get_config_data()["open_ai_key"]
+
+
+def send_chat_gpt():
+
+    # Load the JSON file
+    with open("prompts.json", "r") as file:
+        data = json.load(file)
+
+        random_prompt = random.choice(data)
+
+        client = OpenAI(
+            # This is the default and can be omitted
+            api_key=GPT_API_KEY,
+        )
+
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a girl who like anime and video games",
+                },
+                {
+                    "role": "user",
+                    "content": f"{random_prompt} {"Use only a few words and with no punctuation or capitalizations, in madarin chinese hanzi."}",
+                },
+            ],
+            model="gpt-4",
+        )
+        # Print the response
+        return chat_completion.choices[0].message.content
+
+    return ""
+
 
 class MyClient(discord.Client):
     def __init__(self, account_name, **kwargs):
@@ -80,6 +126,7 @@ class MyClient(discord.Client):
         self.logger = self._create_instance_logger(account_name)
         self.user_id = config_get_value(account_name, "id")
         self.dm_channel = config_get_value(account_name, "dm_channel")
+        self.message_channel = config_get_value(account_name, "message_channel")
         self.drop_channels = config_get_value(account_name, "drop_channels")
         self.follow_channels = config_get_value(account_name, "follow_channels")
         self.visit_card_codes = config_get_value(account_name, "visit_card_codes")
@@ -88,6 +135,7 @@ class MyClient(discord.Client):
         self.discord_username = config_get_value(account_name, "discord_username")
         self.seconds_for_grab = config_get_value(account_name, "seconds_for_grab")
         self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
+        self.is_bot = config_get_value(account_name, "is_bot")
         self.grab = False
         self.drop = False
         self.daily = False
@@ -103,8 +151,13 @@ class MyClient(discord.Client):
         self.sleeping = False
         self.lock = asyncio.Lock()
         self.dropped_cards_awaiting_pickup = False
-        self.timestamp_for_grab_available = datetime.now().timestamp() + 500000000000
+        self.timestamp_for_grab_available = (
+            datetime.now().timestamp() + self.seconds_for_grab
+        )
         self.dateable_codes = []
+        self.timestamp_for_last_random_action = (
+            datetime.now().timestamp() + random.randint(100, 500)
+        )
 
     def _create_instance_logger(self, account_name):
         # Create a logger specific to this instance
@@ -119,7 +172,8 @@ class MyClient(discord.Client):
 
         # Create a formatter with timezone-aware timestamps
         formatter = logging.Formatter(
-            fmt="%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+            fmt=account_name
+            + ": %(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
@@ -149,6 +203,7 @@ class MyClient(discord.Client):
         account_name = self.account_name
         self.user_id = config_get_value(account_name, "id")
         self.dm_channel = config_get_value(account_name, "dm_channel")
+        self.message_channel = config_get_value(account_name, "message_channel")
         self.drop_channels = config_get_value(account_name, "drop_channels")
         self.follow_channels = config_get_value(account_name, "follow_channels")
         self.visit_card_codes = config_get_value(account_name, "visit_card_codes")
@@ -157,6 +212,16 @@ class MyClient(discord.Client):
         self.discord_username = config_get_value(account_name, "discord_username")
         self.seconds_for_grab = config_get_value(account_name, "seconds_for_grab")
         self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
+        self.is_bot = config_get_value(account_name, "is_bot")
+
+    async def send_random_karuta_message(self):
+        selected_channel = self.message_channel
+        channel = self.get_channel(selected_channel)
+        async with channel.typing():
+            await asyncio.sleep(random.uniform(0.5, 2))
+        commands = ["kwi", "kc", "kci", "kv", "krm", "kcd"]
+        await channel.send(random.choice(commands))
+        await asyncio.sleep(random.uniform(2, 5))
 
     async def drop_card(self):
 
@@ -176,16 +241,6 @@ class MyClient(discord.Client):
         short_delay = random.uniform(3, 8)
         self.logger.debug(f"Creating short delay of {short_delay}")
         await asyncio.sleep(short_delay)
-
-    async def check_cooldowns(self, dm):
-        self.logger.info("Checking cooldowns")
-        async with dm.typing():
-            await asyncio.sleep(random.uniform(0.2, 1))
-        self.logger.info(
-            f"-----------------------Sending in channel DM-----------------------"
-        )
-        await dm.send("kcd")
-        await asyncio.sleep(random.uniform(2, 5))
 
     async def send_msg(self, channel: discord.TextChannel, msg: str):
         self.logger.info(f"Sending message {msg} to channel {channel}")
@@ -225,8 +280,8 @@ class MyClient(discord.Client):
             self.visit = True
             self.dateable_codes = []
             await asyncio.sleep(random.uniform(3, 5))
-            dm = self.get_channel(self.dm_channel)
-            await self.send_msg(dm, "kafl")
+            message_channel = self.get_channel(self.message_channel)
+            await self.send_msg(message_channel, "kafl")
             await asyncio.sleep(random.uniform(3, 5))
         self.sleeping = False
 
@@ -234,9 +289,10 @@ class MyClient(discord.Client):
         self.logger.info("Logged on as %s", self.user)
         # Dm setup
         dm = self.get_channel(self.dm_channel)
+        msg_channel = self.get_channel(self.message_channel)
         dating_channel = self.get_channel(self.dating_channel)
 
-        await self.check_cooldowns(dm)
+        await self.send_msg(msg_channel, "kcd")
 
         # Auto drop
         while True:
@@ -247,7 +303,7 @@ class MyClient(discord.Client):
 
             diff = datetime.now().timestamp() - self.timestamp_for_grab_available
             self.logger.info(
-                f"g:{self.grab} d:{self.drop} f: {self.fruits} c: {self.candy} grab_cd: {diff}"
+                f"g:{self.grab} d:{self.drop} f: {self.fruits} c: {self.candy} grab_cd: {int(diff)}"
             )
             await asyncio.sleep(random.uniform(5, 10))
             # Sleeping time
@@ -259,10 +315,30 @@ class MyClient(discord.Client):
                 # Using shared vars here - need lock
                 async with self.lock:
 
+                    # Bot stuff
+                    if self.is_bot:
+                        diff = (
+                            datetime.now().timestamp()
+                            - self.timestamp_for_last_random_action
+                        )
+                        if diff > 0:
+                            if random.randint(1, 2) == 1:
+                                text = send_chat_gpt()
+                                if text != "":
+                                    await self.send_msg(msg_channel, text)
+                            else:
+                                await self.send_random_karuta_message()
+                            self.timestamp_for_last_random_action = (
+                                datetime.now().timestamp()
+                                + random.randint(
+                                    self.seconds_for_grab, self.seconds_for_drop
+                                )
+                            )
+
                     if self.visit and self.dateable_codes:
                         self.logger.info(f"sending visit")
                         code = self.dateable_codes.pop()
-                        await self.send_msg(dm, f"kvi {code}")
+                        await self.send_msg(msg_channel, f"kvi {code}")
                         self.visit = False
 
                     if self.dating:
@@ -276,7 +352,7 @@ class MyClient(discord.Client):
                         self.logger.info(f"Grab is available now, diff={diff}")
                         self.grab = True
                         self.timestamp_for_grab_available = (
-                            datetime.now().timestamp() + 500000000000
+                            datetime.now().timestamp() + self.seconds_for_grab
                         )
                     if self.grab and self.drop:
                         self.logger.info(
@@ -306,6 +382,44 @@ class MyClient(discord.Client):
             await self.on_message_helper(message)
         self.logger.debug("Done new message!")
 
+    async def check_public_kcd(
+        self, message: discord.Message, check_for_message_button_edit
+    ):
+        # kcd check
+        if (
+            len(message.embeds) > 0
+            and "Showing cooldowns" in message.embeds[0].description
+            and str(self.user_id) in message.embeds[0].description
+        ):
+            self.logger.info("Getting cooldowns")
+            message_tokens = message.embeds[0].description.split("\n")
+            grab_status = message_tokens[-2]
+            drop_status = message_tokens[-1]
+            self.grab = "currently available" in grab_status
+            self.drop = "currently available" in drop_status
+
+            if not self.grab:
+                grab_time = grab_status.split("`")[1]
+                val = grab_time.split(" ")[0]
+                unit = grab_time.split(" ")[1]
+                seconds_for_grab = self.seconds_for_grab
+                if unit == "minutes":
+                    seconds_for_grab = int(val) * 60
+                else:
+                    seconds_for_grab = int(val)
+            if not self.drop:
+                drop_time = drop_status.split("`")[1]
+                val = drop_time.split(" ")[0]
+                unit = drop_time.split(" ")[1]
+                seconds_for_drop = self.seconds_for_drop
+                if unit == "minutes":
+                    seconds_for_drop = int(val) * 60
+                else:
+                    seconds_for_drop = int(val)
+                drop_time = drop_status.split("`")[1]
+
+            self.logger.info(f"Grab: {self.grab}, Drop: {self.drop}")
+
     async def check_for_dm(
         self, message: discord.Message, check_for_message_button_edit
     ):
@@ -327,8 +441,8 @@ class MyClient(discord.Client):
                     if len(self.dateable_codes) == 0:
                         self.logger.info(f"sending kafl")
                         await asyncio.sleep(random.uniform(3, 5))
-                        dm = self.get_channel(self.dm_channel)
-                        await self.send_msg(dm, "kafl")
+                        message_channel = self.get_channel(self.message_channel)
+                        await self.send_msg(message_channel, "kafl")
                         await asyncio.sleep(random.uniform(3, 5))
                 return
 
@@ -572,6 +686,7 @@ class MyClient(discord.Client):
                     seconds_for_drop = int(val)
                 drop_delay = seconds_for_drop + random.uniform(30, 100)
                 self.logger.info(f"Got drop warning - updating drop cd to false")
+                self.dropped_cards_awaiting_pickup = False
                 self.drop = False
 
     async def check_fruit_in_private_message(self, message):
@@ -751,7 +866,7 @@ class MyClient(discord.Client):
                         await self.check_fruit_in_private_message(message)
                         await self.check_candy_in_private_message(message)
                 else:
-
+                    self.drop = False
                     self.logger.info(f"Dont have generosity")
 
                     if rating >= 2:
@@ -1002,6 +1117,7 @@ class MyClient(discord.Client):
         message_uuid = message.author.id
         try:
             await self.check_for_dm(message, check_for_first_button_enabled_edit)
+            await self.check_public_kcd(message, check_for_first_button_enabled_edit)
             self.check_fruit_grab(message_uuid, message_content)
             self.check_candy_grab(message_uuid, message_content)
             self.check_for_evasion(message_uuid, message_content)
@@ -1029,170 +1145,178 @@ class MyClient(discord.Client):
 
 
 async def get_best_card_index(message):
-    start = time.time()
 
-    processedImgResultList = []
-    try:
-        attachements_url = ""
-        cardnum = extractNumCardsFromMessage(message.content)
-        tempPath = f"temp/{message.id}"
-        os.makedirs(tempPath, exist_ok=True)
-        dropsPath = os.path.join(tempPath, "drops.webp")
-        with open(dropsPath, "wb") as file:
-            attachements_url = message.attachments[0].url
-            file.write(requests.get(attachements_url).content)
-        ocrPath = os.path.join(tempPath, "ocr")
-        processedImgResultList = await preProcessImg(
-            tempPath, dropsPath, ocrPath, cardnum
-        )
+    async with OCR_LOCK:
 
-    except Exception as e:
-        logging.exception(
-            f"Something went wrong in processing, {e}, {attachements_url}"
-        )
+        if message.id in MESSAGE_ID_TO_OCR_CACHE:
+            logging.info(f"Fetching data for {message.id} from cache")
+            return MESSAGE_ID_TO_OCR_CACHE[message.id]
 
-    if len(processedImgResultList) == 0:
-        return -1
-    cardList = []
-    for cardImageResult in processedImgResultList:
+        start = time.time()
 
-        seriesNameFromOcr = "--------------------------------"
-        charNameFromOcr = "--------------------------------"
+        processedImgResultList = []
         try:
-            charNameFromOcr = " ".join(reader.readtext(cardImageResult[0], detail=0))
-            seriesOriginal = " ".join(reader.readtext(cardImageResult[1], detail=0))
-            seriesNameFromOcr = f"{seriesOriginal[:46]}..."
+            attachements_url = ""
+            cardnum = extractNumCardsFromMessage(message.content)
+            tempPath = f"temp/{message.id}"
+            os.makedirs(tempPath, exist_ok=True)
+            dropsPath = os.path.join(tempPath, "drops.webp")
+            with open(dropsPath, "wb") as file:
+                attachements_url = message.attachments[0].url
+                file.write(requests.get(attachements_url).content)
+            ocrPath = os.path.join(tempPath, "ocr")
+            processedImgResultList = await preProcessImg(
+                tempPath, dropsPath, ocrPath, cardnum
+            )
+
         except Exception as e:
-            logging.error("Text OCR failure")
-        UNKNOWN_PRINT_SENTINEL = 100000000
-        printNumFromOcr = UNKNOWN_PRINT_SENTINEL
-        try:
-            ogReadPrint = reader.readtext(
-                cardImageResult[2], detail=0, allowlist="0123456789."
-            )[0]
-            printNumFromOcr = int(str.split(ogReadPrint, ".")[0])
-        except Exception as e:
-            logging.error(f"print OCR failure for message {message.id}")
+            logging.exception(
+                f"Something went wrong in processing, {e}, {attachements_url}"
+            )
 
-        cardList.append((charNameFromOcr, seriesNameFromOcr, printNumFromOcr))
-    logging.debug(f"Cardlist: {cardList}")
+        if len(processedImgResultList) == 0:
+            return -1
+        cardList = []
+        for cardImageResult in processedImgResultList:
 
-    # Query for the series/char.
-    results = []
+            seriesNameFromOcr = "--------------------------------"
+            charNameFromOcr = "--------------------------------"
+            try:
+                charNameFromOcr = " ".join(
+                    reader.readtext(cardImageResult[0], detail=0)
+                )
+                seriesOriginal = " ".join(reader.readtext(cardImageResult[1], detail=0))
+                seriesNameFromOcr = f"{seriesOriginal[:46]}..."
+            except Exception as e:
+                logging.error("Text OCR failure")
+            UNKNOWN_PRINT_SENTINEL = 100000000
+            printNumFromOcr = UNKNOWN_PRINT_SENTINEL
+            try:
+                ogReadPrint = reader.readtext(
+                    cardImageResult[2], detail=0, allowlist="0123456789."
+                )[0]
+                printNumFromOcr = int(str.split(ogReadPrint, ".")[0])
+            except Exception as e:
+                logging.error(f"print OCR failure for message {message.id}")
 
-    for cardPos, (cardChar, cardSeries, cardPrint) in enumerate(cardList):
-        found, matchedSeries, matchedChar, wishlistCount = findBestMatch(
-            cardSeries, cardChar, seriesDB, characterDB
+            cardList.append((charNameFromOcr, seriesNameFromOcr, printNumFromOcr))
+        logging.debug(f"Cardlist: {cardList}")
+
+        # Query for the series/char.
+        results = []
+
+        for cardPos, (cardChar, cardSeries, cardPrint) in enumerate(cardList):
+            found, matchedSeries, matchedChar, wishlistCount = findBestMatch(
+                cardSeries, cardChar, seriesDB, characterDB
+            )
+
+            results.append(wishlistCount)
+        logging.debug(f"Results: {results}")
+
+        card_metadata = []
+
+        for card, wishlist in zip(cardList, results):
+            card_metadata.append(
+                {
+                    "name": card[0],
+                    "series": card[1],
+                    "printcount": card[2],
+                    "wlcount": wishlist,
+                }
+            )
+
+        all_cards = []
+        for og_index, meta in enumerate(card_metadata):
+            all_cards.append((og_index, meta))
+
+        high_wl = []
+        mid_wl = []
+        low_wl = []
+        garbage_wl = []
+
+        special_print = []
+        great_print = []
+        ok_print = []
+        garbage_print = []
+
+        for card in all_cards:
+            wl = card[1]["wlcount"]
+            print = card[1]["printcount"]
+
+            if wl > 999:
+                high_wl.append(card)
+            if 999 >= wl > 50:
+                mid_wl.append(card)
+            if 50 >= wl > 19:
+                low_wl.append(card)
+            if 19 >= wl:
+                garbage_wl.append(card)
+
+            if UNKNOWN_PRINT_SENTINEL > print > 50000:
+                garbage_print.append(card)
+            if 50000 >= print >= 10000:
+                ok_print.append(card)
+            if 10000 > print:
+                great_print.append(card)
+            if print == UNKNOWN_PRINT_SENTINEL:
+                special_print.append(card)
+
+        # Sortem
+        high_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        mid_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        low_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        garbage_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+
+        special_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        great_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        ok_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+        garbage_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
+
+        final_order = (
+            []
+            + high_wl
+            + mid_wl
+            + low_wl
+            + special_print
+            + great_print
+            + ok_print
+            + garbage_wl
+            + garbage_print
         )
 
-        results.append(wishlistCount)
-    logging.debug(f"Results: {results}")
+        if len(final_order) == 0:
+            final_order = all_cards
 
-    card_metadata = []
-
-    for card, wishlist in zip(cardList, results):
-        card_metadata.append(
-            {
-                "name": card[0],
-                "series": card[1],
-                "printcount": card[2],
-                "wlcount": wishlist,
-            }
+        logging.info(
+            f"Cards analyzed:\n{"\n".join([
+            f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
+            for dec in card_metadata])}"
         )
 
-    all_cards = []
-    for og_index, meta in enumerate(card_metadata):
-        all_cards.append((og_index, meta))
+        rating = 0
 
-    high_wl = []
-    mid_wl = []
-    low_wl = []
-    garbage_wl = []
+        if len(special_print) > 0:
+            rating = 1
+        if len(low_wl) > 0:
+            rating = 1
+        if len(mid_wl) > 0:
+            rating = 2
+        if len(high_wl) > 0:
+            rating = 10
 
-    special_print = []
-    great_print = []
-    ok_print = []
-    garbage_print = []
+        logging.info(
+            f"messageid: {message.id} rating {rating} final order: {str([val[0] for val in final_order])} "
+        )
 
-    for card in all_cards:
-        wl = card[1]["wlcount"]
-        print = card[1]["printcount"]
+        end = time.time()
+        logging.debug(f"Took {end-start} time to get best index")
 
-        if wl > 999:
-            high_wl.append(card)
-        if 999 >= wl > 50:
-            mid_wl.append(card)
-        if 50 >= wl > 19:
-            low_wl.append(card)
-        if 19 >= wl:
-            garbage_wl.append(card)
+        MESSAGE_ID_TO_OCR_CACHE[message.id] = (final_order[0][0], rating)
+        if len(MESSAGE_ID_TO_OCR_CACHE) > 100:
+            oldest_key = next(iter(MESSAGE_ID_TO_OCR_CACHE))
+            MESSAGE_ID_TO_OCR_CACHE.pop(oldest_key)
 
-        if UNKNOWN_PRINT_SENTINEL > print > 50000:
-            garbage_print.append(card)
-        if 50000 >= print >= 10000:
-            ok_print.append(card)
-        if 10000 > print:
-            great_print.append(card)
-        if print == UNKNOWN_PRINT_SENTINEL:
-            special_print.append(card)
-
-    # Sortem
-    high_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-    mid_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-    low_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-    garbage_wl.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-
-    special_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-    great_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-    ok_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-    garbage_print.sort(key=lambda x: x[1]["wlcount"], reverse=True)
-
-    final_order = (
-        []
-        + high_wl
-        + mid_wl
-        + low_wl
-        + special_print
-        + great_print
-        + ok_print
-        + garbage_wl
-        + garbage_print
-    )
-
-    if len(final_order) == 0:
-        final_order = all_cards
-
-    logging.info(
-        f"Cards analyzed:\n{"\n".join([
-        f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
-        for dec in card_metadata])}"
-    )
-
-    rating = 0
-
-    if len(special_print) > 0:
-        rating = 1
-    if len(low_wl) > 0:
-        rating = 1
-    if len(mid_wl) > 0:
-        rating = 2
-    if len(high_wl) > 0:
-        rating = 10
-
-    logging.info(
-        f"rating {rating} final order: {str([val[0] for val in final_order])} "
-    )
-
-    end = time.time()
-    logging.debug(f"Took {end-start} time to get best index")
-
-    return final_order[0][0], rating
-
-
-def get_config_data():
-    f = open(args.c)
-    data = json.load(f)
-    return data
+        return final_order[0][0], rating
 
 
 def config_get_value(acc_name, value):
@@ -1209,7 +1333,7 @@ async def run(token, index):
         account["name"] for account in accounts if account["token"] == token
     ][0]
 
-    wait_time = index * random.uniform(300, 500)
+    wait_time = index * random.uniform(45, 90)
     logging.info(f"Waiting {wait_time} before starting client {account_name}")
     await asyncio.sleep(wait_time)
     client = MyClient(account_name)

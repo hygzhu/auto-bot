@@ -1,1 +1,1 @@
-tail -f output*
+tail -f output.log.config_mine*

@@ -19,6 +19,12 @@ import time
 import re
 from collections import OrderedDict
 
+
+parser = argparse.ArgumentParser("parser")
+parser.add_argument("-c", required=True, help="Config location", type=str)
+args = parser.parse_args()
+CONFIG_NAME = args.c
+
 tz = pytz.timezone("US/Eastern")  # UTC, Asia/Shanghai, Europe/Berlin
 logging.basicConfig(
     format="%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
@@ -26,10 +32,14 @@ logging.basicConfig(
     level=logging.INFO,
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(f"output.log.{datetime.now().timestamp()}", mode="w"),
+        logging.FileHandler(
+            f"output.log.{CONFIG_NAME}.{datetime.now().timestamp()}", mode="w"
+        ),
     ],
 )
 logging.Formatter.converter = lambda *args: datetime.now(tz).timetuple()
+
+logging.info(f"Parser args config:{args.c}")
 
 KARUTA_ID = 646937666251915264
 KOIBOT_ID = 877620197299748945
@@ -43,11 +53,6 @@ def get_config_data():
     data = json.load(f)
     return data
 
-
-parser = argparse.ArgumentParser("parser")
-parser.add_argument("-c", required=True, help="Config location", type=str)
-args = parser.parse_args()
-logging.info(f"Parser args config:{args.c}")
 
 emoji_map = {
     "arrow_up_small": "🔼",
@@ -123,6 +128,8 @@ class MyClient(discord.Client):
     def __init__(self, account_name, **kwargs):
         super().__init__(**kwargs)
         self.account_name = account_name
+        self.sleep_start = config_get_value(account_name, "sleep_start")
+        self.sleep_end = config_get_value(account_name, "sleep_end")
         self.logger = self._create_instance_logger(account_name)
         self.user_id = config_get_value(account_name, "id")
         self.dm_channel = config_get_value(account_name, "dm_channel")
@@ -164,7 +171,9 @@ class MyClient(discord.Client):
         logger = logging.getLogger(account_name)
 
         # Create a unique log filename for this instance
-        log_filename = f"output.log.{account_name}.{datetime.now().timestamp()}"
+        log_filename = (
+            f"output.log.{CONFIG_NAME}.{account_name}.{datetime.now().timestamp()}"
+        )
 
         # Configure the logger with StreamHandler and FileHandler
         logger = logging.getLogger(account_name)
@@ -201,6 +210,8 @@ class MyClient(discord.Client):
     def update_config_values(self):
         self.logger.info("Updating config values")
         account_name = self.account_name
+        self.sleep_start = config_get_value(account_name, "sleep_start")
+        self.sleep_end = config_get_value(account_name, "sleep_end")
         self.user_id = config_get_value(account_name, "id")
         self.dm_channel = config_get_value(account_name, "dm_channel")
         self.message_channel = config_get_value(account_name, "message_channel")
@@ -256,8 +267,8 @@ class MyClient(discord.Client):
         eastern = pytz.timezone("US/Eastern")
         loc_dt = now.astimezone(eastern)
         hour = loc_dt.hour
-        start_hour = random.choice([1, 2])
-        end_hour = random.choice([5, 6])
+        start_hour = self.sleep_start
+        end_hour = self.sleep_end
         while is_hour_between(start_hour, end_hour, hour):
             self.logger.info(f" sleeping from {start_hour}, {end_hour}, {hour}")
             utc = pytz.utc
@@ -281,7 +292,8 @@ class MyClient(discord.Client):
             self.dateable_codes = []
             await asyncio.sleep(random.uniform(3, 5))
             message_channel = self.get_channel(self.message_channel)
-            await self.send_msg(message_channel, "kafl")
+            if self.visit_card_codes:
+                await self.send_msg(message_channel, "kafl")
             await asyncio.sleep(random.uniform(3, 5))
         self.sleeping = False
 
@@ -708,7 +720,7 @@ class MyClient(discord.Client):
 
     async def check_candy_in_private_message(self, message):
         # Get fruits after
-        if message.components[0].children[-1].emoji.name == "🍬":
+        if message.components[0].children[-1].emoji.name in ["🍫", "🍬"]:
             self.logger.info("candy detected")
             self.logger.info("grabbing candy")
             click_delay = random.uniform(0.55, 1)
@@ -723,7 +735,7 @@ class MyClient(discord.Client):
     async def check_candy_in_public_message(
         self, message: discord.Message, waited_for_edit, check_for_message_button_edit
     ):
-        if message.components[0].children[-1].emoji.name == "🍬":
+        if message.components[0].children[-1].emoji.name in ["🍫", "🍬"]:
             self.logger.info("candy detected - public drop")
 
             if not waited_for_edit:
@@ -750,7 +762,6 @@ class MyClient(discord.Client):
                     f"-----------------------PUBLIC candy CLICK in {message.channel.id}-----------------------------------"
                 )
                 await asyncio.sleep(click_delay)
-                self.logger.debug("Tried to grab fruit")
                 await asyncio.sleep(random.uniform(0.3, 0.6))
             else:
                 self.logger.info("skipping candy, random says no")

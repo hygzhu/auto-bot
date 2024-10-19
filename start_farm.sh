@@ -8,16 +8,16 @@ echo "Trying to start up"
 trap '' HUP
 . dev_env/bin/activate
 echo "Run"
-nohup python3.12 autobot.py -c config_mine.json 2> /dev/null &
+nohup python3.12 autobot.py -c config_farm.json 2> /dev/null &
 
 while true; do
     # Use the find command to search for files matching the pattern
-    if ! find . -type f -iname "output.log.config_mine*" -print -quit | grep -q .; then
+    if ! find . -type f -iname "output.log.config_farm*" -print -quit | grep -q .; then
         echo "No files found matching pattern Sleeping for $SLEEP_DURATION seconds..."
         sleep "$SLEEP_DURATION"
     else
         echo "Files found matching pattern"
-        output_file=$(find . -type f -iname "output.log.config_mine*" )
+        output_file=$(find . -type f -iname "output.log.config_farm*" )
         echo "Tailing"
         tail -f $output_file
         break

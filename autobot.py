@@ -92,6 +92,48 @@ from openai import OpenAI
 GPT_API_KEY = get_config_data()["open_ai_key"]
 
 
+def _create_instance_logger(account_name):
+    # Create a logger specific to this instance
+    logger = logging.getLogger(account_name)
+
+    # Create a unique log filename for this instance
+    log_filename = (
+        f"output.log.{CONFIG_NAME}.{account_name}.{datetime.now().timestamp()}"
+    )
+
+    # Configure the logger with StreamHandler and FileHandler
+    logger = logging.getLogger(account_name)
+    logger.setLevel(logging.INFO)
+
+    # Create a formatter with timezone-aware timestamps
+    formatter = logging.Formatter(
+        fmt=account_name
+        + ": %(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    tz = pytz.timezone("US/Eastern")  # UTC, Asia/Shanghai,
+    # Override the time converter for timezone-aware logging
+    formatter.converter = lambda *args: datetime.now(tz).timetuple()
+
+    # StreamHandler (for console output)
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+
+    # FileHandler (for file output)
+    file_handler = logging.FileHandler(log_filename, mode="w")
+    file_handler.setFormatter(formatter)
+
+    # Add handlers to the logger
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+
+    # Disable propagation to avoid duplicate logs
+    logger.propagate = False
+
+    return logger
+
+
 def send_chat_gpt():
 
     # Load the JSON file
@@ -113,7 +155,7 @@ def send_chat_gpt():
                 },
                 {
                     "role": "user",
-                    "content": f"{random_prompt} {"Use only a few words and with no punctuation or capitalizations, in madarin chinese hanzi."}",
+                    "content": f"{random_prompt} {"Use only a few words and with no punctuation or capitalizations, answer in madarin chinese hanzi."}",
                 },
             ],
             model="gpt-4",
@@ -130,7 +172,7 @@ class MyClient(discord.Client):
         self.account_name = account_name
         self.sleep_start = config_get_value(account_name, "sleep_start")
         self.sleep_end = config_get_value(account_name, "sleep_end")
-        self.logger = self._create_instance_logger(account_name)
+        self.logger = _create_instance_logger(account_name)
         self.user_id = config_get_value(account_name, "id")
         self.dm_channel = config_get_value(account_name, "dm_channel")
         self.message_channel = config_get_value(account_name, "message_channel")
@@ -165,47 +207,6 @@ class MyClient(discord.Client):
         self.timestamp_for_last_random_action = (
             datetime.now().timestamp() + random.randint(100, 500)
         )
-
-    def _create_instance_logger(self, account_name):
-        # Create a logger specific to this instance
-        logger = logging.getLogger(account_name)
-
-        # Create a unique log filename for this instance
-        log_filename = (
-            f"output.log.{CONFIG_NAME}.{account_name}.{datetime.now().timestamp()}"
-        )
-
-        # Configure the logger with StreamHandler and FileHandler
-        logger = logging.getLogger(account_name)
-        logger.setLevel(logging.INFO)
-
-        # Create a formatter with timezone-aware timestamps
-        formatter = logging.Formatter(
-            fmt=account_name
-            + ": %(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-
-        tz = pytz.timezone("US/Eastern")  # UTC, Asia/Shanghai,
-        # Override the time converter for timezone-aware logging
-        formatter.converter = lambda *args: datetime.now(tz).timetuple()
-
-        # StreamHandler (for console output)
-        stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setFormatter(formatter)
-
-        # FileHandler (for file output)
-        file_handler = logging.FileHandler(log_filename, mode="w")
-        file_handler.setFormatter(formatter)
-
-        # Add handlers to the logger
-        logger.addHandler(stream_handler)
-        logger.addHandler(file_handler)
-
-        # Disable propagation to avoid duplicate logs
-        logger.propagate = False
-
-        return logger
 
     def update_config_values(self):
         self.logger.info("Updating config values")
@@ -397,40 +398,41 @@ class MyClient(discord.Client):
     async def check_public_kcd(
         self, message: discord.Message, check_for_message_button_edit
     ):
-        # kcd check
-        if (
-            len(message.embeds) > 0
-            and "Showing cooldowns" in message.embeds[0].description
-            and str(self.user_id) in message.embeds[0].description
-        ):
-            self.logger.info("Getting cooldowns")
-            message_tokens = message.embeds[0].description.split("\n")
-            grab_status = message_tokens[-2]
-            drop_status = message_tokens[-1]
-            self.grab = "currently available" in grab_status
-            self.drop = "currently available" in drop_status
+        if message.channel.id == self.message_channel:
+            # kcd check
+            if (
+                len(message.embeds) > 0
+                and "Showing cooldowns" in message.embeds[0].description
+                and str(self.user_id) in message.embeds[0].description
+            ):
+                self.logger.info("Getting cooldowns")
+                message_tokens = message.embeds[0].description.split("\n")
+                grab_status = message_tokens[-2]
+                drop_status = message_tokens[-1]
+                self.grab = "currently available" in grab_status
+                self.drop = "currently available" in drop_status
 
-            if not self.grab:
-                grab_time = grab_status.split("`")[1]
-                val = grab_time.split(" ")[0]
-                unit = grab_time.split(" ")[1]
-                seconds_for_grab = self.seconds_for_grab
-                if unit == "minutes":
-                    seconds_for_grab = int(val) * 60
-                else:
-                    seconds_for_grab = int(val)
-            if not self.drop:
-                drop_time = drop_status.split("`")[1]
-                val = drop_time.split(" ")[0]
-                unit = drop_time.split(" ")[1]
-                seconds_for_drop = self.seconds_for_drop
-                if unit == "minutes":
-                    seconds_for_drop = int(val) * 60
-                else:
-                    seconds_for_drop = int(val)
-                drop_time = drop_status.split("`")[1]
+                if not self.grab:
+                    grab_time = grab_status.split("`")[1]
+                    val = grab_time.split(" ")[0]
+                    unit = grab_time.split(" ")[1]
+                    seconds_for_grab = self.seconds_for_grab
+                    if unit == "minutes":
+                        seconds_for_grab = int(val) * 60
+                    else:
+                        seconds_for_grab = int(val)
+                if not self.drop:
+                    drop_time = drop_status.split("`")[1]
+                    val = drop_time.split(" ")[0]
+                    unit = drop_time.split(" ")[1]
+                    seconds_for_drop = self.seconds_for_drop
+                    if unit == "minutes":
+                        seconds_for_drop = int(val) * 60
+                    else:
+                        seconds_for_drop = int(val)
+                    drop_time = drop_status.split("`")[1]
 
-            self.logger.info(f"Grab: {self.grab}, Drop: {self.drop}")
+                self.logger.info(f"Grab: {self.grab}, Drop: {self.drop}")
 
     async def check_for_dm(
         self, message: discord.Message, check_for_message_button_edit
@@ -1155,6 +1157,9 @@ class MyClient(discord.Client):
             self.logger.exception(f"Something went wrong processing message {e}")
 
 
+CARD_LOGGER = _create_instance_logger("STARBOARD")
+
+
 async def get_best_card_index(message):
 
     async with OCR_LOCK:
@@ -1303,6 +1308,12 @@ async def get_best_card_index(message):
             f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
             for dec in card_metadata])}"
         )
+
+        for dec in card_metadata:
+            if dec["wlcount"] > 200:
+                CARD_LOGGER.info(
+                    f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
+                )
 
         rating = 0
 

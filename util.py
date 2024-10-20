@@ -7,6 +7,7 @@ from enum import Enum
 from ocr import *
 from wishlistdb import *
 import time
+import re
 
 
 class DisplayStatus(Enum):
@@ -429,3 +430,83 @@ def is_hour_between(start, end, now):
     is_between |= end < start and (start <= now or now <= end)
 
     return is_between
+
+
+def get_kjb_dict(message: discord.Message, user_id):
+    if (
+        len(message.embeds) > 0
+        and message.embeds[0].description
+        and f"Showing board of <@{user_id}>" in message.embeds[0].description
+    ):
+        contribution = message.embeds[0].description
+        # Create an empty dictionary to store the mappings
+        contribution_dict = {}
+
+        # Use a regular expression to find each line with the data we need
+        pattern = r"🇦|🇧|🇨|🇩|🇪"
+        matches = re.findall(
+            r"(🇦|🇧|🇨|🇩|🇪) (.+?) · \*\*(\d+)\*\* Effort · `(.*?)`", contribution
+        )
+
+        # Alphabet letters mapping to the respective emoji flag
+        letter_mapping = {"🇦": "a", "🇧": "b", "🇨": "c", "🇩": "d", "🇪": "e"}
+
+        for letter, name, effort, status in matches:
+            letter_key = letter_mapping[letter]
+            contribution_dict[letter_key] = (name, int(effort), status)
+
+        # {'a': ('Erwin Smith', '176', 'Healthy'), 'b': ('Blanc', '174', 'Healthy'), 'c': ('Sanma', '166', 'Healthy'), 'd': ('Altiria Ray O’ltriese', '141', 'Healthy'), 'e': ('Parsee Mizuhashi', '114', 'Healthy')}
+        return contribution_dict
+    return {}
+
+
+def get_kc_effort_list(message: discord.Message, user_id):
+    if (
+        len(message.embeds) > 0
+        and message.embeds[0].description
+        and f"Cards owned by <@{user_id}>" in message.embeds[0].description
+    ):
+        inpuit_string = message.embeds[0].description
+        # Regular expression pattern to match the desired information
+        pattern = r"\`✧(\d+)\`\s·\s\*\*`([^`]+)`\*\*\s·.*?·\s\*\*(.*?)\*\*"
+
+        # Find all matches
+        matches = re.findall(pattern, inpuit_string)
+
+        # Convert the matches to the required format
+        result = [(int(score), id_, name) for score, id_, name in matches]
+        # [
+        #     (190, "v1b72qv", "Minato Namikaze"),
+        #     (180, "v11qzpf", "Itsuki Nakano"),
+        #     (176, "v1vnqb6", "Erwin Smith"),
+        #     (174, "v10hs1p", "Blanc"),
+        #     (168, "v1brw4m", "Amako"),
+        #     (166, "v1vdg5d", "Sanma"),
+        #     (156, "v12gz2r", "Yuzu Izumi"),
+        #     (141, "v108qm3", "Altiria Ray O’ltriese"),
+        #     (114, "v10mhn3", "Parsee Mizuhashi"),
+        #     (109, "vnxh4w4", "Ripple"),
+        # ]
+
+        return result
+    return []
+
+
+def get_tax_values(message: discord.Message):
+    if (
+        len(message.embeds) > 0
+        and message.embeds[0].title
+        and "Nodes Overview" in message.embeds[0].title
+    ):
+        inputstring = message.embeds[0].description
+        # Regex pattern to match material name and tax percentage
+        pattern = r"`(\w+)` · \*\*(\d+)%\*\* tax"
+
+        # Find all matches
+        matches = re.findall(pattern, inputstring)
+
+        # Convert matches into the required list of tuples
+        result = [(int(tax), name) for name, tax in matches]
+        # [(50, 'gold'), (10, 'salt'), (10, 'oil'), (10, 'magma'), (10, 'iron'), (10, 'ice'), (10, 'flower'), (10, 'essence'), (10, 'copper'), (10, 'clay')]
+        return result
+    return []

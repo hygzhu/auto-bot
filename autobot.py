@@ -185,14 +185,23 @@ class MyClient(discord.Client):
         self.seconds_for_grab = config_get_value(account_name, "seconds_for_grab")
         self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
         self.is_bot = config_get_value(account_name, "is_bot")
+        self.auto_work = config_get_value(account_name, "auto_work")
         self.grab = False
         self.drop = False
         self.daily = False
         self.vote = False
         self.work = False
         self.visit = False
+        # Dating stuff
         self.dating = False
         self.last_dating_message = None
+        self.dateable_codes = []
+        # Work stuff
+        self.working = False
+        self.workers = []
+        self.jobboard = {}
+        self.tax = []
+        # Drop grab stuff
         self.evasion = 0  # Is an int since evasion can stack culmulatively
         self.generosity = False
         self.fruits = 0
@@ -200,10 +209,10 @@ class MyClient(discord.Client):
         self.sleeping = False
         self.lock = asyncio.Lock()
         self.dropped_cards_awaiting_pickup = False
+        # Time stamps
         self.timestamp_for_grab_available = (
             datetime.now().timestamp() + self.seconds_for_grab
         )
-        self.dateable_codes = []
         self.timestamp_for_last_random_action = (
             datetime.now().timestamp() + random.randint(100, 500)
         )
@@ -225,13 +234,14 @@ class MyClient(discord.Client):
         self.seconds_for_grab = config_get_value(account_name, "seconds_for_grab")
         self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
         self.is_bot = config_get_value(account_name, "is_bot")
+        self.auto_work = config_get_value(account_name, "auto_work")
 
     async def send_random_karuta_message(self):
         selected_channel = self.message_channel
         channel = self.get_channel(selected_channel)
         async with channel.typing():
             await asyncio.sleep(random.uniform(0.5, 2))
-        commands = ["kwi", "kc", "kci", "kv", "krm", "kcd"]
+        commands = ["kwi", "kc", "kci", "kv", "kcd", "krm"]
         await channel.send(random.choice(commands))
         await asyncio.sleep(random.uniform(2, 5))
 
@@ -348,12 +358,66 @@ class MyClient(discord.Client):
                                 )
                             )
 
+                    # Working items
+                    if self.auto_work:
+
+                        if self.work:
+                            self.logger.info(
+                                f"work: {self.work} working: {self.working} workers: {self.workers}, jb: {self.jobboard}, tax:{self.tax}"
+                            )
+                            self.work = False
+                            self.working = True
+                            self.workers = []
+                            self.jobboard = {}
+                            self.tax = []
+                            self.logger.info(f"Work is enabled and true")
+                            commands = ["kjb", "kc o:ef", "kn"]
+                            random.shuffle(commands)
+                            for command in commands:
+                                await self.send_msg(msg_channel, command)
+
+                        if (
+                            self.working
+                            and len(self.workers) > 0
+                            and len(self.jobboard) > 0
+                            and len(self.tax) > 0
+                        ):
+                            self.logger.info(
+                                f"work: {self.work} working: {self.working} workers: {self.workers}, jb: {self.jobboard}, tax:{self.tax}"
+                            )
+                            self.working = False
+                            best_5 = self.workers[:5]
+                            for key, (
+                                worker_name,
+                                effort,
+                                status,
+                            ) in self.jobboard.items():
+                                if worker_name not in [worker[2] for worker in best_5]:
+                                    effort, code, name = best_5.pop()
+                                    while best_5 and name in [
+                                        val[0] for val in self.jobboard.values()
+                                    ]:
+                                        effort, code, name = best_5.pop(0)
+                                    # Replace
+                                    await self.send_msg(
+                                        msg_channel, f"kjw {code} {key}"
+                                    )
+                                    self.jobboard[key] = (effort, code, name)
+
+                            lowest_tax, node_name = sorted(self.tax)[0]
+
+                            self.workers = []
+                            self.jobboard = {}
+                            self.tax = []
+                            await self.send_msg(msg_channel, f"kjn {node_name} abcde")
+                            await self.send_msg(msg_channel, f"kw")
+
+                    # Dating items
                     if self.visit and self.dateable_codes:
                         self.logger.info(f"sending visit")
                         code = self.dateable_codes.pop()
                         await self.send_msg(msg_channel, f"kvi {code}")
                         self.visit = False
-
                     if self.dating:
                         self.dating = False
                         await self.send_msg(dating_channel, f"kvi")
@@ -604,6 +668,42 @@ class MyClient(discord.Client):
                             await yes_button.click()
                             await asyncio.sleep(random.uniform(0.3, 2))
                             self.dating = True
+
+    # TODO: check on reply
+    async def check_krm(self, message: discord.Message):
+
+        # krm check
+        if (
+            len(message.embeds) > 0
+            and message.embeds[0].author
+            and "Reminders" in message.embeds[0].author.name
+        ):
+            if message.reference:
+                try:
+                    # Attempt to resolve the replied-to message from cache
+                    replied_message = message.reference.resolved
+                    if replied_message.author.id == self.user_id:
+                        self.logger.info("Getting reminders")
+                        message_tokens = message.embeds[0].description.split("\n")
+                        daily_status = message_tokens[-6]
+                        vote_status = message_tokens[-5]
+                        drop_status = message_tokens[-4]
+                        grab_status = message_tokens[-3]
+                        work_staus = message_tokens[-2]
+                        visit_status = message_tokens[-1]
+                        self.daily = "is ready" in daily_status
+                        self.vote = "is ready" in vote_status
+                        self.grab = "is ready" in grab_status
+                        self.drop = "is ready" in drop_status
+                        self.work = "is ready" in work_staus
+                        self.visit = "is ready" in visit_status
+
+                        self.logger.info(
+                            f"\nDaily:{self.daily}\nVote:{self.vote}\nGrab:{self.grab}\n Drop:{self.drop}\nWork:{self.work}\nVisit:{self.visit}"
+                        )
+
+                except discord.NotFound:
+                    pass
 
     def check_candy_grab(self, message_uuid, message_content):
         # karuta message for candy
@@ -999,6 +1099,45 @@ class MyClient(discord.Client):
                     message, waited_for_edit, check_for_message_button_edit
                 )
 
+    async def check_work_messages(
+        self, message: discord.Message, check_for_first_button_enabled_edit
+    ):
+        if message.author.id != KARUTA_ID:
+            return
+        jb = get_kjb_dict(message, self.user_id)
+        workers = get_kc_effort_list(message, self.user_id)
+        tax = get_tax_values(message)
+        if len(jb) > 0:
+            self.jobboard = jb
+            self.logger.info(self.jobboard)
+        if len(workers) > 0:
+            self.workers = workers
+            self.logger.info(self.workers)
+        if len(tax) > 0:
+            self.tax = tax
+            self.logger.info(self.tax)
+
+        if (
+            len(message.embeds) > 0
+            and f"<@{self.user_id}>, after node taxes, your workers will produce the following"
+            in message.embeds[0].description
+        ):
+            self.logger.info("Got work message")
+
+            try:
+                await self.wait_for(
+                    "message_edit",
+                    check=check_for_first_button_enabled_edit,
+                    timeout=3,
+                )
+            except TimeoutError as e:
+                self.logger.error(f"Wait for timed out {e}")
+
+            await asyncio.sleep(random.uniform(2, 5))
+            yes_button = message.components[0].children[1]
+            await yes_button.click()
+            await asyncio.sleep(random.uniform(2, 5))
+
     async def check_dating_solution(
         self, message: discord.Message, check_for_first_button_enabled_edit
     ):
@@ -1136,6 +1275,7 @@ class MyClient(discord.Client):
             self.check_for_evasion(message_uuid, message_content)
             self.check_for_card_grab(message_uuid, message_content)
             self.check_for_cooldown_warning(message_uuid, message_content)
+            await self.check_krm(message)
             await self.check_personal_drop(
                 message_uuid,
                 message_content,
@@ -1153,6 +1293,7 @@ class MyClient(discord.Client):
                 message, check_for_first_button_enabled_edit
             )
             await self.apply_dating_solution(message)
+            await self.check_work_messages(message, check_for_first_button_enabled_edit)
         except Exception as e:
             self.logger.exception(f"Something went wrong processing message {e}")
 
@@ -1310,7 +1451,7 @@ async def get_best_card_index(message):
         )
 
         for dec in card_metadata:
-            if dec["wlcount"] > 200:
+            if dec["wlcount"] > 100:
                 CARD_LOGGER.info(
                     f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
                 )
@@ -1345,6 +1486,8 @@ def config_get_value(acc_name, value):
     data = get_config_data()
     accounts = data["accounts"]
     account = [account for account in accounts if account["name"] == acc_name][0]
+    if value not in account:
+        return None
     return account[value]
 
 

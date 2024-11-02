@@ -345,16 +345,17 @@ class MyClient(discord.Client):
                             - self.timestamp_for_last_random_action
                         )
                         if diff > 0:
-                            if random.randint(1, 2) == 1:
-                                text = send_chat_gpt()
-                                if text != "":
-                                    await self.send_msg(msg_channel, text)
-                            else:
-                                await self.send_random_karuta_message()
+                            # if random.randint(1, 2) == 1:
+                            #     text = send_chat_gpt()
+                            #     if text != "":
+                            #         await self.send_msg(msg_channel, text)
+                            # else:
+                            #     await self.send_random_karuta_message()
+                            await self.send_random_karuta_message()
                             self.timestamp_for_last_random_action = (
                                 datetime.now().timestamp()
                                 + random.randint(
-                                    self.seconds_for_grab, self.seconds_for_drop
+                                    self.seconds_for_grab * 2, self.seconds_for_drop * 2
                                 )
                             )
 
@@ -392,7 +393,10 @@ class MyClient(discord.Client):
                                 effort,
                                 status,
                             ) in self.jobboard.items():
-                                if worker_name not in [worker[2] for worker in best_5]:
+                                if (
+                                    worker_name not in [worker[2] for worker in best_5]
+                                    and len(best_5) > 0
+                                ):
                                     effort, code, name = best_5.pop()
                                     while best_5 and name in [
                                         val[0] for val in self.jobboard.values()
@@ -435,7 +439,7 @@ class MyClient(discord.Client):
                         self.logger.info(
                             f"-----------------------Adding delay before drop-----------------------"
                         )
-                        await asyncio.sleep(random.uniform(2, 10))
+                        await asyncio.sleep(random.uniform(10, 50))
                         self.logger.info(f"Try to drop")
                         await self.drop_card()
             except Exception as e:
@@ -1451,7 +1455,9 @@ async def get_best_card_index(message):
         )
 
         for dec in card_metadata:
-            if dec["wlcount"] > 100:
+            if (
+                dec["wlcount"] > 100 and dec["printcount"] == UNKNOWN_PRINT_SENTINEL
+            ) or dec["wlcount"] > 1000:
                 CARD_LOGGER.info(
                     f"{dec["name"] : <40}{dec["series"] : <40} WL: {dec["wlcount"] : <10} Print: {dec["printcount"]: <10}"
                 )
@@ -1498,7 +1504,7 @@ async def run(token, index):
         account["name"] for account in accounts if account["token"] == token
     ][0]
 
-    wait_time = index * random.uniform(45, 90)
+    wait_time = index * random.uniform(60, 500)
     logging.info(f"Waiting {wait_time} before starting client {account_name}")
     await asyncio.sleep(wait_time)
     client = MyClient(account_name)

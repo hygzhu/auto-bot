@@ -186,6 +186,7 @@ class MyClient(discord.Client):
         self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
         self.is_bot = config_get_value(account_name, "is_bot")
         self.auto_work = config_get_value(account_name, "auto_work")
+        self.auto_daily = config_get_value(account_name, "auto_daily")
         self.grab = False
         self.drop = False
         self.daily = False
@@ -235,6 +236,7 @@ class MyClient(discord.Client):
         self.seconds_for_drop = config_get_value(account_name, "seconds_for_drop")
         self.is_bot = config_get_value(account_name, "is_bot")
         self.auto_work = config_get_value(account_name, "auto_work")
+        self.auto_daily = config_get_value(account_name, "auto_daily")
 
     async def send_random_karuta_message(self):
         selected_channel = self.message_channel
@@ -345,12 +347,6 @@ class MyClient(discord.Client):
                             - self.timestamp_for_last_random_action
                         )
                         if diff > 0:
-                            # if random.randint(1, 2) == 1:
-                            #     text = send_chat_gpt()
-                            #     if text != "":
-                            #         await self.send_msg(msg_channel, text)
-                            # else:
-                            #     await self.send_random_karuta_message()
                             await self.send_random_karuta_message()
                             self.timestamp_for_last_random_action = (
                                 datetime.now().timestamp()
@@ -358,6 +354,12 @@ class MyClient(discord.Client):
                                     self.seconds_for_grab * 2, self.seconds_for_drop * 2
                                 )
                             )
+
+                    if self.auto_daily:
+                        if self.daily:
+                            await self.send_msg(msg_channel, "kdaily")
+                            await asyncio.sleep(random.uniform(5, 10))
+                            self.daily = False
 
                     # Working items
                     if self.auto_work:
@@ -673,7 +675,6 @@ class MyClient(discord.Client):
                             await asyncio.sleep(random.uniform(0.3, 2))
                             self.dating = True
 
-    # TODO: check on reply
     async def check_krm(self, message: discord.Message):
 
         # krm check
@@ -1142,6 +1143,85 @@ class MyClient(discord.Client):
             await yes_button.click()
             await asyncio.sleep(random.uniform(2, 5))
 
+    async def check_daily(
+        self, message: discord.Message, check_for_first_button_enabled_edit
+    ):
+        if (
+            len(message.embeds) > 0
+            and message.embeds[0].description
+            and "Bulletin Board" in message.embeds[0].title
+        ):
+            self.logger.info("Got kdaily messages")
+            if message.reference:
+                replied_message = message.reference.resolved
+                if replied_message.author.id == self.user_id:
+                    self.logger.info("Kdaily message")
+                    for component in message.components:
+                        for child in component.children:
+                            if (
+                                child.message
+                                and child.emoji
+                                and child.emoji.name
+                                and child.emoji.name == "🧠"
+                            ):
+                                await asyncio.sleep(random.uniform(1, 3))
+                                self.logger.info("Kdaily click")
+                                await child.click()
+                                await asyncio.sleep(random.uniform(1, 3))
+                    try:
+                        await self.wait_for(
+                            "message_edit",
+                            check=check_for_first_button_enabled_edit,
+                            timeout=3,
+                        )
+                    except TimeoutError as e:
+                        self.logger.error(f"Wait for daily button timed out {e}")
+
+                    stored_answers = {}
+                    if os.path.exists("daily_answers.json"):  # Check if the file exists
+                        with open("daily_answers.json", "r") as file:
+                            stored_answers = json.load(
+                                file
+                            )  # Load JSON data from the file
+
+                    question = message.embeds[0].description
+                    if question not in stored_answers:
+                        answers = {}
+                        for component in message.components:
+                            for child in component.children:
+                                answers[child.label] = ""
+                        stored_answers[question] = answers
+
+                    async def click_child_button(message, stored_answers, question):
+                        for component in message.components:
+                            for child in component.children:
+                                if stored_answers[question][child.label] != "false":
+                                    await asyncio.sleep(random.uniform(1, 3))
+                                    self.logger.info("daily answer click")
+                                    await child.click()
+                                    await asyncio.sleep(random.uniform(1, 3))
+                                    return child.label
+
+                    clicked_child_message = await click_child_button(
+                        message, stored_answers, question
+                    )
+                    try:
+                        await self.wait_for(
+                            "message_edit",
+                            check=check_for_first_button_enabled_edit,
+                            timeout=3,
+                        )
+                    except TimeoutError as e:
+                        self.logger.error(f"Wait for daily answer clicktimed out {e}")
+                    answer_correct = "your answer was **correct**" in message.content
+                    stored_answers[question][clicked_child_message] = (
+                        "false" if not answer_correct else "true"
+                    )
+                    with open("daily_answers.json", "w") as file:
+                        json.dump(
+                            stored_answers, file, indent=4
+                        )  # Write default data to the file
+
     async def check_dating_solution(
         self, message: discord.Message, check_for_first_button_enabled_edit
     ):
@@ -1298,6 +1378,7 @@ class MyClient(discord.Client):
             )
             await self.apply_dating_solution(message)
             await self.check_work_messages(message, check_for_first_button_enabled_edit)
+            await self.check_daily(message, check_for_first_button_enabled_edit)
         except Exception as e:
             self.logger.exception(f"Something went wrong processing message {e}")
 
@@ -1504,7 +1585,7 @@ async def run(token, index):
         account["name"] for account in accounts if account["token"] == token
     ][0]
 
-    wait_time = index * random.uniform(60, 500)
+    wait_time = index * random.uniform(60, 100)
     logging.info(f"Waiting {wait_time} before starting client {account_name}")
     await asyncio.sleep(wait_time)
     client = MyClient(account_name)

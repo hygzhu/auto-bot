@@ -1148,7 +1148,7 @@ class MyClient(discord.Client):
     ):
         if (
             len(message.embeds) > 0
-            and message.embeds[0].description
+            and message.embeds[0].title
             and "Bulletin Board" in message.embeds[0].title
         ):
             self.logger.info("Got kdaily messages")
@@ -1196,7 +1196,7 @@ class MyClient(discord.Client):
                         for component in message.components:
                             for child in component.children:
                                 if stored_answers[question][child.label] != "false":
-                                    await asyncio.sleep(random.uniform(1, 3))
+                                    await asyncio.sleep(random.uniform(5, 20))
                                     self.logger.info("daily answer click")
                                     await child.click()
                                     await asyncio.sleep(random.uniform(1, 3))

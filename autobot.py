@@ -1194,7 +1194,9 @@ class MyClient(discord.Client):
 
                     async def click_child_button(message, stored_answers, question):
                         for component in message.components:
-                            for child in component.children:
+                            for child in random.sample(
+                                component.children, len(component.children)
+                            ):
                                 if stored_answers[question][child.label] != "false":
                                     await asyncio.sleep(random.uniform(5, 20))
                                     self.logger.info("daily answer click")

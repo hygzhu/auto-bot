@@ -1,0 +1,59 @@
+{
+    "If the Karuta bot tells you to change the email for your Discord account, should you do it?": {
+        "No": "true",
+        "Yes": "false"
+    },
+    "A friend tells you that one of the easiest ways to get rich while playing Karuta is to create multiple accounts to vote on, then transfer the tickets to your main account. Should you do it?": {
+        "Yes": "false",
+        "No": "true"
+    },
+    "Someone sends a message asking you to test a game, program, or application they made. They send a link or attach a file, suggesting you download it. Should you ignore them?": {
+        "Yes": "true",
+        "Only if they're not a friend": "false",
+        "No": "false"
+    },
+    "You and another player complete a trade, and you later discover that they ripped you off. Is it true that <@646937666251915264>'s staff team won't be able to reverse the trade or punish the player?": {
+        "No": "false",
+        "Yes": "true"
+    },
+    "Do Edition 1 cards drop more frequently or less frequently with each new edition release?": {
+        "Less frequently": "true",
+        "More frequently": "false"
+    },
+    "Will spamming a channel cause <@646937666251915264> to drop cards more often?": {
+        "No": "true",
+        "Yes": "false"
+    },
+    "If you're having problems accessing the website to vote for <@646937666251915264> and need assistance, whose staff team should you contact?": {
+        "Discord": "false",
+        "Top.gg": "true",
+        "Karuta": "false"
+    },
+    "After joining a server, you receive a DM telling you to change the email address for your Discord account or else face consequences. Should you do it?": {
+        "No": "true",
+        "Only if it's from the Karuta bot": "false",
+        "Yes": "false"
+    },
+    "You have a problem with <@646937666251915264> and arrive at a website claiming to represent Karuta's staff team. What should you do?": {
+        "Use the website": "false",
+        "Leave the website": "true"
+    },
+    "Someone offers to trade you their cards/items but insists that you send them cryptocurrency, gift cards, or some other anonymous real-money equivalent. Is this risky?": {
+        "Yes": "true",
+        "No": "false"
+    },
+    "A popular bot DMs and warns you that you must change the email address associated with your Discord account. It states that failing to do so will lead to a blacklist or other consequences from <@646937666251915264>. Should you do it?": {
+        "Only if the bot is verified": "false",
+        "No": "true",
+        "Yes": "false"
+    },
+    "A user/bot sends you a link to a help article on the <https://support.discord.com/> website. Should you trust and act upon the information in this article?": {
+        "Yes": "false",
+        "No": "true"
+    },
+    "Will Discord's staff team ever email, DM, or otherwise contact you to ask for sensitive information related to your account?": {
+        "Yes": "false",
+        "No": "",
+        "Only if I'm in danger": "false"
+    }
+}

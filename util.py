@@ -452,6 +452,11 @@ def get_kjb_dict(message: discord.Message, user_id):
         letter_mapping = {"🇦": "a", "🇧": "b", "🇨": "c", "🇩": "d", "🇪": "e"}
 
         for letter, name, effort, status in matches:
+
+            # Hack for alias
+            if name == "Miyuki Shirogane":
+                name = "Prez"
+
             letter_key = letter_mapping[letter]
             contribution_dict[letter_key] = (name, int(effort), status)
 
